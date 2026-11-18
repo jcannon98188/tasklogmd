@@ -50,7 +50,7 @@ Source: Daemon architecture, Daemon HTTP API, MCP transport options, ADR 0001.
 - Each git worktree is an independent workspace keyed by absolute root. There is no cross-worktree reconciliation in v1; claims are per-checkout until merged by git.
 
 **Lifecycle**
-- The shim spawns the daemon detached (`spawn` with `detached`, `stdio: 'ignore'`, `windowsHide`, then `unref`, or whatever Spike 1 selects) and waits up to about 10 s for a healthy state file. It hides daemon restarts (re-resolve, respawn, retry the in-flight request once), exits only when stdin closes, and on spawn failure stays up and returns an MCP error per call.
+- The shim spawns the daemon through `cmd.exe /d /c start "" /b node <daemon>` (Node `spawn` of `cmd.exe` with `stdio: 'ignore'`, `windowsHide: true`, NOT `detached`, then `unref`), as selected by Spike 1. Plain `spawn` with `detached` does not survive `taskkill /T /F`: the shim is still the daemon's parent when the tree is walked. `cmd` exits at once, which orphans the daemon out of Claude Code's tree. The shim waits up to about 10 s for a healthy state file. It hides daemon restarts (re-resolve, respawn, retry the in-flight request once), exits only when stdin closes, and on spawn failure stays up and returns an MCP error per call.
 - Daemon exit: after 30 minutes with no clients, or on `tasklog stop`, draining in-flight writes first.
 - The daemon serves immediately and indexes each workspace in the background. A request waits on its own workspace's scan up to about 5 s, then fails with the retryable `indexing` error.
 - During drain, new requests get `shutting_down` (503, retryable), the shim's restart-and-retry-once trigger.
@@ -299,6 +299,18 @@ Three throwaway scripts, run before any feature slice, each recording pass or fa
 5. The daemon survives closing the terminal that started Claude Code.
 
 If 1, 2 or 5 fails, move to the next fallback in order: `cmd /c start`, then a one-shot scheduled task. Report which approach passed and update section 2's lifecycle to name it. If every approach fails, reopen the architecture.
+
+**Spike 1 result** (run 2026-11-17, Windows 11 Pro 10.0.26200, Claude Code 2.1.327, Node 24.21; script `spikes/01-detach/run.mjs`, stub shim registered as user-scope MCP server `spike1-shim` and removed afterwards; headless `claude -p` assumed equivalent to interactive).
+
+| Point | `spawn` detached (`stdio: 'ignore'`, `windowsHide`, `unref`) | `cmd /d /c start "" /b` (winner) |
+|---|---|---|
+| 1 survives normal exit | PASS | PASS |
+| 2 survives `taskkill /T /F` of Claude Code | **FAIL** (daemon died with the tree) | PASS |
+| 3 second session reuses daemon via state file, no second spawn | PASS | PASS |
+| 4 no console window at spawn (EnumWindows poll every 40 ms) | PASS (0 new windows) | PASS (0 new windows) |
+| 5 survives closing the launching terminal (WM_CLOSE on its window) | PASS | PASS |
+
+**Winner: `cmd.exe /d /c start "" /b <node> <daemon>`**, spawned with `stdio: 'ignore'`, `windowsHide: true`, not `detached`. The one-shot scheduled task was not needed in the final run. An earlier trial of the same `cmd start` with `detached: true` flashed a Windows Terminal window (the detached `cmd` allocates a fresh console), and an earlier scheduled-task trial also showed windows, so do not combine `detached` with `cmd`. Not verified: interactive (non-headless) Claude Code, Task Manager End Task by hand (`taskkill /T /F` used instead), and a manual click on the terminal's X (WM_CLOSE sent programmatically, which is what the X does).
 
 **Spike 2: launch from Claude Code.** Does `claude mcp add -- tasklog shim` work against the global-install `.cmd` shim without `cmd /c`, and does the shim reach healthy within the 30 s startup timeout (including a cold start that spawns the daemon)? Settles open verification item V1.
 
