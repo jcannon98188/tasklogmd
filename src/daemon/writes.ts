@@ -100,7 +100,8 @@ export interface WriteServiceOptions {
 export class WriteService {
   /** Test hook, settable at any time. See `WriteServiceOptions.beforeRename`. */
   beforeRename?: (w: PendingWrite) => Promise<void> | void;
-  private readonly now: () => number;
+  /** Time source (ms epoch); the workflow tools use it for `updated`. */
+  readonly now: () => number;
   private readonly queues = new Map<string, Promise<unknown>>();
   /** `root\0relPath -> hash` of the last bytes this service wrote. The watcher (ticket 07) drops events whose hash matches. */
   private readonly selfWrites = new Map<string, string>();

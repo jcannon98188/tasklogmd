@@ -16,7 +16,9 @@ export type Edit =
   | { op: 'add_ac'; text: string; checked?: boolean }
   | { op: 'edit_ac'; n: number; text: string }
   | { op: 'toggle_ac'; n: number; checked?: boolean }
-  | { op: 'remove_ac'; n: number };
+  | { op: 'remove_ac'; n: number }
+  // Internal: only the workflow tools (claim, release, resolve, close, triage) construct this; no generic tool exposes it.
+  | { op: 'set_state'; status?: 'open' | 'claimed' | 'resolved' | 'closed'; claimed_by?: string | null; updated?: string; answer?: string; tags?: string[] };
 
 export type EditOp = Edit['op'];
 
@@ -270,6 +272,28 @@ function setFields(p0: ValidParse, e: Extract<Edit, { op: 'set_fields' }>, ctx: 
   return text;
 }
 
+/** Internal workflow edit: Answer, tags, status, claimed_by and updated in one atomic patch. */
+function setState(p0: ValidParse, e: Extract<Edit, { op: 'set_state' }>): string {
+  let p = p0;
+  let text = p.text;
+  const step = (fn: (p: ValidParse) => string) => {
+    text = fn(p);
+    if (text !== p.text) p = reparse(text, 'edit');
+  };
+  if (e.answer !== undefined) step((q) => replaceSection(q, { op: 'replace_section', heading: 'Answer', content: e.answer! }));
+  if (e.tags !== undefined) {
+    const tags = normalizeTags(e.tags);
+    step((q) => (tags.length === 0 && !q.entries.some((x) => x.key === 'tags') ? q.text : setKey(q, 'tags', tags)));
+  }
+  if (e.status !== undefined) step((q) => setKey(q, 'status', e.status!));
+  if (e.claimed_by !== undefined) {
+    const who = e.claimed_by === null ? undefined : singleLine(e.claimed_by, 'claimed_by');
+    step((q) => setKey(q, 'claimed_by', who));
+  }
+  if (e.updated !== undefined) step((q) => setKey(q, 'updated', e.updated!));
+  return text;
+}
+
 // ---- sections -------------------------------------------------------------------------------------------
 
 const normHeading = (h: string): string => h.replace(/^#+\s*/, '').trim().toLowerCase();
@@ -457,6 +481,9 @@ export function applyEdit(parse: ValidParse, edit: Edit, ctx: EditContext): Edit
   switch (edit.op) {
     case 'set_fields':
       res = { text: setFields(p, edit, ctx) };
+      break;
+    case 'set_state':
+      res = { text: setState(p, edit) };
       break;
     case 'replace_section':
       res = { text: replaceSection(p, edit) };
