@@ -17,11 +17,17 @@
 
 ## Comments
 
-Implemented on branch .
+Implemented on branch `t3/ticket-12-full-cli`.
 
--  rewritten around a per-command arg spec (unknown command, unknown flag, missing value or wrong positional count is exit 2, usage on stderr).  gained test seams  and .  is still ticket 13 (currently exit 2 as an unknown command).
-- :  now returns . New checks:  (fresh/absent/stale, judged before the daemon is ensured, so a stale file fails and is then replaced),  (read straight from the file before the daemon starts, since the daemon sets a corrupt file aside),  (via  over , new ),  (PATH lookup, then ; skipped as ok when claude is absent). Ticket 05 must keep  returning  and .
-- Doctor with a newer daemon prints its checks (protocol check fails) and exits 4, not 1.
--  json gained ;  filters to that workspace.
--  with no daemon only creates  and never starts one; with a daemon it POSTs .
-- Tests:  (in-process, spawn seam), plus one e2e. The e2e doctor test tolerates the machine's real  lacking a tasklog registration.
+- `src/commands.ts` is rewritten around a per-command arg spec: an unknown command, unknown flag, missing value or wrong positional count is exit 2, with usage on stderr. `CliIo` gained test seams `paths` and `env`. `import` is still ticket 13 (currently exit 2 as an unknown command).
+- `src/doctor.ts`: `runDoctor` now returns `{checks, problems, recent_events, recent_log, daemonNewer}`. New checks:
+  - `daemon-json` (fresh, absent or stale), judged before the daemon is ensured, so a stale file fails and is then replaced.
+  - `workspaces-readable`, read straight from the file before the daemon starts, since the daemon sets a corrupt file aside.
+  - `workspace-problems`, via `workspace_status` over `POST /mcp` (new `src/mcp-call.ts`).
+  - `claude-mcp`: PATH lookup, then `claude mcp list`; skipped (ok) when claude is absent.
+  Ticket 05 must keep `workspace_status` returning `problems[]` and `recent_events[]`.
+- Doctor with a newer daemon prints its checks (the protocol check fails) and exits 4, not 1.
+- `status --json` gained `workspace: {root, registered} | null`; `list --workspace` filters to that workspace.
+- `init` with no daemon only creates `.tasklog/` and never starts one; with a daemon it POSTs `/workspaces {root, init: true}`.
+- Tests: `test/integration/cli.test.ts` (in-process, spawn seam) plus one e2e. The e2e doctor test tolerates the machine's real `claude` lacking a tasklog registration.
+
