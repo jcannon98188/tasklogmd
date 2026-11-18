@@ -4,7 +4,7 @@
 
 **Blocked by:** 05 Parser, scan and read tools
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Given a one-field edit, when written, then the file diff is exactly one line, byte-exact, with CRLF, key order, comments, quoting, blank lines and unknown sections preserved.
 - [x] Given a stale hash, when a content edit is sent, then it fails `stale_hash` and the file is unchanged.
