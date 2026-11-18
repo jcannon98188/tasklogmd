@@ -280,13 +280,15 @@ export async function runCommand(argv: string[], io: CliIo): Promise<number> {
       const rep = await runDoctor({ paths, log, cwd: io.cwd, workspace: wsOpt, env: io.env, spawn: io.spawn });
       const failed = rep.checks.some((c) => !c.ok);
       if (json) {
-        out(JSON.stringify({ ok: !failed, checks: rep.checks, problems: rep.problems, recent_events: rep.recent_events, recent_log: rep.recent_log, logs: paths.logsDir }));
+        out(JSON.stringify({ ok: !failed, checks: rep.checks, problems: rep.problems, recent_events: rep.recent_events, recent_log: rep.recent_log, logs: paths.logsDir, log_files: { daemon: paths.daemonLog, shim: paths.shimLog } }));
       } else {
         for (const c of rep.checks) out(`${c.ok ? 'ok  ' : 'FAIL'} ${c.name}: ${c.detail}${c.ok || !c.fix ? '' : `\n     fix: ${c.fix}`}`);
         for (const p of rep.problems) out(`problem: ${JSON.stringify(p)}`);
         for (const e of rep.recent_events) out(`event: ${JSON.stringify(e)}`);
         for (const l of rep.recent_log) out(`log: ${l}`);
         out(`logs: ${paths.logsDir}`);
+        out(`daemon log: ${paths.daemonLog}`);
+        out(`shim log: ${paths.shimLog}`);
       }
       if (rep.daemonNewer) return EXIT.protocol;
       return failed ? EXIT.failed : EXIT.ok;

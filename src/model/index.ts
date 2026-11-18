@@ -96,8 +96,10 @@ export interface ItemView {
 export interface Problem {
   type: ItemFlag;
   id: string;
+  /** The file (for a conflict, the first of `paths`). */
+  path: string;
   paths: string[];
-  error?: string;
+  error: string;
   /** ISO time the problem was first seen. */
   since: string;
 }
@@ -520,14 +522,16 @@ export class WorkspaceIndex {
   problems(): Problem[] {
     const out: Problem[] = [];
     for (const e of this.entries()) {
-      if (!e.parse.ok) out.push({ type: 'invalid', id: e.id, paths: [e.path], error: e.parse.error, since: new Date(e.since).toISOString() });
+      if (!e.parse.ok) out.push({ type: 'invalid', id: e.id, path: e.path, paths: [e.path], error: e.parse.error, since: new Date(e.since).toISOString() });
     }
     for (const [id, list] of [...this.byId.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) {
       if (list.length > 1) {
         out.push({
           type: 'conflicted',
           id,
+          path: list.map((e) => e.path).sort()[0]!,
           paths: list.map((e) => e.path).sort(),
+          error: `${id} is claimed by ${list.length} files; resolve the duplicate on disk.`,
           since: new Date(Math.max(...list.map((e) => e.since))).toISOString(),
         });
       }
