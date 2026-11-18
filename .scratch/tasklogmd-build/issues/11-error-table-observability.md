@@ -4,7 +4,7 @@
 
 **Blocked by:** 09 Workflow tools
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Given each error code in the spec's error table, when raised, then its MCP error, HTTP error (management endpoints) and log entry carry the same code, message and `retryable`, and the log level follows the class (caller-caused and infrastructure `info`, state problems `warn`, unexpected `error`).
 - [x] Given an unexpected exception, when it occurs, then the client gets `internal` with a `request_id` that appears in `daemon.log`.
