@@ -4,7 +4,7 @@
 
 **Blocked by:** 06 Minimal-diff editor and write protocol
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Given a new effort, when created, then `map.md` and `spec.md` exist with the fixed map headings, LF endings and canonical key order, and the map and spec IDs are returned.
 - [x] Given existing tickets, when one is created, then its number is `max + 1` over all files including conflicted ones, with no stored counters.
