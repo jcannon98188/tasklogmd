@@ -9,6 +9,7 @@ import { PROTOCOL, VERSION } from '../version.ts';
 import { WorkspaceRegistry } from '../workspaces.ts';
 import { createMcpServer, type RequestContext } from './mcp.ts';
 import { ModelManager } from './models.ts';
+import { WriteService } from './writes.ts';
 
 export const IDLE_MS = 30 * 60 * 1000;
 
@@ -50,6 +51,8 @@ export interface RunningDaemon {
   readonly token: string;
   /** The in-memory model (parsed-item store plus workspace indexes); exposed for tests and in-process callers. */
   readonly models: ModelManager;
+  /** The write protocol: ticket 07 (watcher) asks it `isSelfWrite`; tests set its `beforeRename` hook. */
+  readonly writes: WriteService;
   /** Drain in-flight requests, then release everything. Resolves when fully stopped. */
   shutdown(reason: string): Promise<void>;
   /** Resolves when the daemon has fully stopped. */
@@ -126,6 +129,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<RunningDaemon> {
     const registry = new WorkspaceRegistry(paths, log);
     const models = new ModelManager(registry, log, { indexWaitMs: opts.indexWaitMs, beforeScan: opts.beforeScan });
     registry.load();
+    const writes = new WriteService(models, log);
     models.startAll();
 
     const token = randomBytes(32).toString('hex'); // 256 random bits, regenerated each start
@@ -182,7 +186,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<RunningDaemon> {
         cwd: header(req, 'x-tasklog-cwd'),
         requestId,
       };
-      const mcp = createMcpServer({ registry, models, log, version }, ctx);
+      const mcp = createMcpServer({ registry, models, writes, log, version }, ctx);
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
       res.on('close', () => {
         void transport.close();
@@ -290,7 +294,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<RunningDaemon> {
       return shutdownPromise;
     }
 
-    return { pid, port, token, models, shutdown, stopped };
+    return { pid, port, token, models, writes, shutdown, stopped };
   } catch (e) {
     try {
       server?.close();

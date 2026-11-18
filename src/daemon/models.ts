@@ -3,6 +3,7 @@ import type { Logger } from '../log.ts';
 import { WorkspaceIndex } from '../model/index.ts';
 import { ParsedItemStore } from '../model/store.ts';
 import type { WorkspaceRegistry } from '../workspaces.ts';
+import { sweepTempFiles } from './writes.ts';
 
 export const INDEX_WAIT_MS = 5000;
 
@@ -48,6 +49,7 @@ export class ModelManager {
         beforeScan: this.opts.beforeScan ? () => this.opts.beforeScan!(root) : undefined,
       });
       this.indexes.set(root, idx);
+      sweepTempFiles(root, this.log); // leftovers of a crashed write; no write can be in flight before the index exists
       void idx.scan('initial');
     }
     return idx;

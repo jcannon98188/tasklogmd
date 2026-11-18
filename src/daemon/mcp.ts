@@ -5,6 +5,8 @@ import type { ListQuery } from '../model/index.ts';
 import type { Logger } from '../log.ts';
 import type { WorkspaceRegistry } from '../workspaces.ts';
 import type { ModelManager } from './models.ts';
+import type { WriteService } from './writes.ts';
+import { registerEditTools } from './edit-tools.ts';
 import { KINDS, STATUSES, TYPES } from '../model/parse.ts';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,6 +24,7 @@ export interface RequestContext {
 export interface McpDeps {
   registry: WorkspaceRegistry;
   models: ModelManager;
+  writes: WriteService;
   log: Logger;
   version?: string;
 }
@@ -154,6 +157,8 @@ export function createMcpServer(deps: McpDeps, ctx: RequestContext): McpServer {
       return { root: deps.registry.register(target, { init: true }) };
     }),
   );
+
+  registerEditTools(server, deps, ctx, wrap);
 
   return server;
 }
