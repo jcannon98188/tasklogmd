@@ -1,0 +1,274 @@
+{
+  "node": "v24.21.0",
+  "platform": "win32",
+  "results": [
+    [
+      "A-cwd-elsewhere: install v1",
+      {
+        "code": 0,
+        "stderr": ""
+      }
+    ],
+    [
+      "A-cwd-elsewhere: v1 shim ping (spawn daemon)",
+      {
+        "code": 0,
+        "json": {
+          "shimVersion": "1.0.0",
+          "shimProtocol": 1,
+          "action": "spawned",
+          "daemonPid": 16716,
+          "daemonVersion": "1.0.0",
+          "daemonProtocol": 1,
+          "echo": "pong"
+        },
+        "stderr": ""
+      }
+    ],
+    [
+      "A-cwd-elsewhere: install v2 over running v1 daemon",
+      {
+        "code": 0,
+        "stdout": "changed 1 package in 655ms",
+        "stderr": ""
+      }
+    ],
+    [
+      "A-cwd-elsewhere: polls during install",
+      {
+        "n": 1,
+        "distinct": [
+          200
+        ]
+      }
+    ],
+    [
+      "A-cwd-elsewhere: installed version after",
+      "2.0.0"
+    ],
+    [
+      "A-cwd-elsewhere: installed dist files after",
+      [
+        "daemon.mjs",
+        "shim.mjs"
+      ]
+    ],
+    [
+      "A-cwd-elsewhere: old daemon alive",
+      true
+    ],
+    [
+      "A-cwd-elsewhere: old daemon /health after install",
+      {
+        "status": 200,
+        "body": {
+          "ok": true,
+          "version": "1.0.0",
+          "protocol": 1,
+          "pid": 16716,
+          "uptime": 1263
+        }
+      }
+    ],
+    [
+      "A-cwd-elsewhere: old daemon /echo after install",
+      {
+        "status": 200,
+        "body": {
+          "echo": "pong",
+          "version": "1.0.0",
+          "pid": 16716
+        }
+      }
+    ],
+    [
+      "A-cwd-elsewhere: old daemon /lazy after install",
+      {
+        "status": 500,
+        "body": {
+          "error": "ERR_MODULE_NOT_FOUND"
+        }
+      }
+    ],
+    [
+      "A-cwd-elsewhere: old daemon log",
+      [
+        "2026-11-18T03:24:08.052Z listening on 61295, cwd C:\\Users\\Jason\\AppData\\Local\\Temp\\tlspike3-oDz4Se | 2026-11-18T03:24:09.306Z error /lazy: ERR_MODULE_NOT_FOUND Cannot find module 'C:\\Users\\Jason\\AppData\\Roaming\\npm\\node_modules\\tasklogspike3\\dist\\lazy.mjs' imported from C:\\Users\\Jason\\AppData\\Roaming\\npm\\node_modules\\tasklogspike3\\dist\\daemon.mjs"
+      ]
+    ],
+    [
+      "A-cwd-elsewhere: v2 shim ping (restart expected)",
+      {
+        "code": 0,
+        "json": {
+          "shimVersion": "2.0.0",
+          "shimProtocol": 2,
+          "action": "restarted",
+          "oldPid": 16716,
+          "daemonPid": 23872,
+          "daemonVersion": "2.0.0",
+          "daemonProtocol": 2,
+          "echo": "pong"
+        },
+        "stderr": ""
+      }
+    ],
+    [
+      "A-cwd-elsewhere: old pid dead after restart",
+      true
+    ],
+    [
+      "A-cwd-elsewhere: new daemon /echo",
+      {
+        "status": 200,
+        "body": {
+          "echo": "pong",
+          "version": "2.0.0",
+          "pid": 23872
+        }
+      }
+    ],
+    [
+      "A-cwd-elsewhere: new daemon /lazy (no lazy file in v2, expect not_found, no ENOENT)",
+      {
+        "status": 500,
+        "body": {
+          "error": "ERR_MODULE_NOT_FOUND"
+        }
+      }
+    ],
+    [
+      "A-cwd-elsewhere: new daemon pid differs",
+      true
+    ],
+    [
+      "A-cwd-elsewhere: downgrade install v1 over running v2 daemon",
+      {
+        "code": 0,
+        "stderr": ""
+      }
+    ],
+    [
+      "A-cwd-elsewhere: v1 shim vs v2 daemon (expect exit 3, no restart)",
+      {
+        "code": 3,
+        "json": {
+          "shimVersion": "1.0.0",
+          "shimProtocol": 1,
+          "error": "daemon_newer_than_shim",
+          "daemonProtocol": 2,
+          "daemonVersion": "2.0.0",
+          "daemonPid": 23872,
+          "action": "none"
+        },
+        "stderr": ""
+      }
+    ],
+    [
+      "A-cwd-elsewhere: v2 daemon untouched",
+      {
+        "samePid": true,
+        "alive": true
+      }
+    ],
+    [
+      "B-cwd-in-package-dir: install v1",
+      {
+        "code": 0,
+        "stderr": ""
+      }
+    ],
+    [
+      "B-cwd-in-package-dir: v1 shim ping (spawn daemon)",
+      {
+        "code": 0,
+        "json": {
+          "shimVersion": "1.0.0",
+          "shimProtocol": 1,
+          "action": "spawned",
+          "daemonPid": 6536,
+          "daemonVersion": "1.0.0",
+          "daemonProtocol": 1,
+          "echo": "pong"
+        },
+        "stderr": ""
+      }
+    ],
+    [
+      "B-cwd-in-package-dir: install v2 over running v1 daemon",
+      {
+        "code": 4294963214,
+        "stdout": "",
+        "stderr": "npm error code EBUSY\nnpm error syscall rename\nnpm error path C:\\Users\\Jason\\AppData\\Roaming\\npm\\node_modules\\tasklogspike3\nnpm error dest C:\\Users\\Jason\\AppData\\Roaming\\npm\\node_modules\\.tasklogspike3-nGlK8NZc\nnpm error errno -4082\nnpm error EBUSY: resource busy or locked, rename 'C:\\Users\\Jason\\AppData\\Roaming\\npm\\node_modules\\tasklogspike3' -> 'C:\\Users\\Jason\\AppData\\Roaming\\npm\\node_modules\\.tasklogspike3-nGlK8NZc'\nnpm error A complete log of this run can be found in: C:\\Users\\Jason\\AppData\\Local\\npm-cache\\_logs\\2026-11-18T03_24_13_426Z-debug-0.log\n"
+      }
+    ],
+    [
+      "B-cwd-in-package-dir: polls during install",
+      {
+        "n": 1,
+        "distinct": [
+          200
+        ]
+      }
+    ],
+    [
+      "B-cwd-in-package-dir: installed version after",
+      "1.0.0"
+    ],
+    [
+      "B-cwd-in-package-dir: installed dist files after",
+      [
+        "daemon.mjs",
+        "lazy.mjs",
+        "shim.mjs"
+      ]
+    ],
+    [
+      "B-cwd-in-package-dir: old daemon alive",
+      true
+    ],
+    [
+      "B-cwd-in-package-dir: old daemon /health after install",
+      {
+        "status": 200,
+        "body": {
+          "ok": true,
+          "version": "1.0.0",
+          "protocol": 1,
+          "pid": 6536,
+          "uptime": 1155
+        }
+      }
+    ],
+    [
+      "B-cwd-in-package-dir: old daemon /echo after install",
+      {
+        "status": 200,
+        "body": {
+          "echo": "pong",
+          "version": "1.0.0",
+          "pid": 6536
+        }
+      }
+    ],
+    [
+      "B-cwd-in-package-dir: old daemon /lazy after install",
+      {
+        "status": 200,
+        "body": {
+          "lazy": "lazy-chunk-from-1.0.0"
+        }
+      }
+    ],
+    [
+      "B-cwd-in-package-dir: old daemon log",
+      [
+        "2026-11-18T03:24:13.053Z listening on 50478, cwd C:\\Users\\Jason\\AppData\\Roaming\\npm\\node_modules\\tasklogspike3"
+      ]
+    ],
+    [
+      "B-cwd-in-package-dir: stopping: install failed",
+      "skipping shim-restart steps"
+    ]
+  ]
+}

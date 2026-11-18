@@ -242,7 +242,7 @@ Source: Tracker doc and setup skill.
 
 - A new seed template `issue-tracker-tasklog.md` in the setup skill, with the same headings the skills already read (Conventions, "publish to the issue tracker", "fetch the relevant ticket", Wayfinding operations). Every instruction is an MCP tool call; no file paths. The skills need no code change because they defer to the tracker doc. Full text: Appendix B.
 - Discovery: the doc names the server `tasklog`. If its tools are missing, the agent tells the user to run `/setup-matt-pocock-skills` and never falls back to editing files.
-- MCP config: user scope, `claude mcp add --scope user tasklog -- tasklog shim` (or `cmd /c tasklog shim` if Spike 2 requires it), after checking `claude mcp list`. No repo-level `.mcp.json`. Other MCP clients get a printed snippet.
+- MCP config: user scope, `claude mcp add --scope user tasklog -- tasklog shim` (no `cmd /c` wrapper; verified by Spike 2), after checking `claude mcp list`. No repo-level `.mcp.json`. Other MCP clients get a printed snippet.
 - The setup skill's Section A gains a "TaskLog" option: detect (a `.tasklog/` directory, or `tasklog` on PATH) and offer it first; write `docs/agents/issue-tracker.md`; update the `## Agent skills` block; write `triage-labels.md` with the five roles as tags; verify with `workspace_status` or `tasklog doctor`.
 - Migration: if `.scratch/` has efforts, setup offers `tasklog import .scratch --dry-run`, shows the report, then runs the real import on approval and rewrites `docs/agents/issue-tracker.md`. It never edits or deletes `.scratch/`; the user commits `.tasklog/`.
 
@@ -252,14 +252,15 @@ Source: Windows packaging research (branch `research/windows-packaging`); the ch
 
 **Decision (v1): npm global install.**
 - `npm i -g tasklog`, `engines` Node `>=24`. Node 26 is Active LTS and Node 24 is Maintenance LTS until 2028-04-30; Node 22 ends 2027-04-30 and is not accepted. `engines` is advisory unless engine-strict is set, so `doctor` checks the Node version.
-- Registration: `claude mcp add --scope user tasklog -- tasklog shim`, falling back to `cmd /c tasklog shim` if Spike 2 shows the `.cmd` shim needs a wrapper. A global install avoids the `npx` first-run delay against Claude Code's 30 s MCP startup timeout.
+- Registration: `claude mcp add --scope user tasklog -- tasklog shim`. Spike 2 showed the `.cmd` shim launches without a `cmd /c` wrapper. A global install avoids the `npx` first-run delay against Claude Code's 30 s MCP startup timeout.
 - Not in v1: Node single executable (Stability 1.1, single-script embedding, `.exe` extension) and a bundled installer. Both bring code signing and SmartScreen reputation cost, and the Artifact Signing programme is open to individuals only in the USA and Canada.
 - Data in `%LOCALAPPDATA%\tasklog\` (`daemon.json`, `workspaces.json`, lock file, `logs\`); this is machine-local state, so Local rather than Roaming.
 
 **Build rules that follow from upgrading on a running Windows daemon**
 - The published package is bundled into one ESM file per entry point, so a running daemon never lazy-loads a file an upgrade just replaced.
 - No native addons in the daemon (chokidar v6 is pure JS).
-- Upgrade path: `npm i -g tasklog`, then the protocol-mismatch restart from section 2; `tasklog stop` first is recommended and documented.
+- The shim spawns the daemon with a cwd outside the package directory (Spike 3: a daemon whose cwd is inside the package makes `npm i -g` fail with `EBUSY` on the directory rename).
+- Upgrade path (confirmed by Spike 3): `npm i -g tasklog`, then the protocol-mismatch restart from section 2; `tasklog stop` first is recommended and documented.
 
 ## 12. Testing
 
@@ -314,14 +315,25 @@ If 1, 2 or 5 fails, move to the next fallback in order: `cmd /c start`, then a o
 
 **Spike 2: launch from Claude Code.** Does `claude mcp add -- tasklog shim` work against the global-install `.cmd` shim without `cmd /c`, and does the shim reach healthy within the 30 s startup timeout (including a cold start that spawns the daemon)? Settles open verification item V1.
 
+**Spike 2 result (2026-11-17, Claude Code 2.1.327, npm 11.19, Windows 11).** V1: yes. A stub package installed with `npm i -g <local path>` produced `tasklogspike2` and `tasklogspike2.cmd` in `%APPDATA%\npm`. `claude mcp add --scope user spike2 -- tasklogspike2 shim` (no `cmd /c`) connected, and a headless `claude -p` session called the stub's `ping` tool and got its reply. The `cmd /c` fallback was not needed and was not exercised. Cold start (no daemon; shim spawned a detached stub daemon and held `initialize` until it answered health) took about 130 ms to healthy, far inside the 30 s timeout. Caveats: the stub daemon is a trivial HTTP server, so a real daemon's startup (SQLite open, index build) is not measured; one run only. Code: `spikes/02-launch/`.
+
 **Spike 3: upgrade with a running daemon.** Run `npm i -g` over a version while a daemon is up. Does the replace succeed, does the old daemon keep serving, and does the newer shim restart it? Settles V2.
+
+**Spike 3 result (run 2026-11-17, Windows 11, Node 24.21, npm 11.19, `spikes/03-upgrade/`, stub package `tasklogspike3`): PASS, with one hard constraint.**
+- Replace succeeds when the daemon's working directory is outside the package: `npm i -g` over a running old daemon exits 0 (about 0.6 s) and swaps the files. A running Node process does not lock the ESM files it already loaded.
+- **Failure mode (reproduced):** if the daemon's cwd is inside the installed package directory, the install fails with `EBUSY: resource busy or locked, rename ...\node_modules\<pkg>` (errno -4082, syscall `rename`); the old version stays installed and the old daemon is unaffected. The directory held open by the daemon's cwd is the lock, not a file. Rule: the shim spawns the daemon with a cwd outside the package (inherit the user's cwd, or `%LOCALAPPDATA%\tasklog`), never the package dir.
+- The old daemon keeps serving after a successful install (`/health`, `/echo` returned 200 from the old pid).
+- Lazy loading breaks: an old daemon that `import()`s a sibling file after the upgrade removed it fails with `ERR_MODULE_NOT_FOUND`. Confirms the bundling rule (one ESM file per entry point, no lazy chunks).
+- A newer shim (protocol 2) facing the old daemon (protocol 1) sent `POST /shutdown`, the old pid exited, a new daemon spawned from the new files and served requests (old pid dead, new pid differs).
+- An older shim (protocol 1) facing the newer daemon (protocol 2) exited non-zero with `daemon_newer_than_shim` and left the daemon running with the same pid.
+- Not verified: npm's behaviour with a real bundle, antivirus or indexer locks on real machines, an upgrade while a request is in flight, and a daemon whose process holds other handles into the package dir.
 
 **Open verification items** (research could not settle these from official sources)
 
 | # | Question | Settled by |
 |---|---|---|
-| V1 | Do `.cmd` shims (npm global bins) launch correctly as an MCP server on Windows without a `cmd /c` wrapper? | Spike 2 |
-| V2 | Can a running exe or its package files be replaced on upgrade? | Spike 3 |
+| V1 | Do `.cmd` shims (npm global bins) launch correctly as an MCP server on Windows without a `cmd /c` wrapper? | Spike 2: yes, no wrapper needed |
+| V2 | Can a running exe or its package files be replaced on upgrade? | Spike 3: yes, provided the daemon's cwd is outside the package; see Spike 3 result |
 | V3 | Does SmartScreen apply to files installed by npm? | observed during Slice 13 release testing |
 
 ## 14. Build slices
