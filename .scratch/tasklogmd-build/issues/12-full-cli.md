@@ -1,0 +1,16 @@
+# 12: Full CLI
+
+**What to build:** A person can run and debug TaskLog from the terminal: the rest of the `tasklog` command set, JSON output, exit codes and the full `doctor`. Spec reference: `.scratch/tasklogmd/spec.md`, section 8. Adds `start`, `add`, `remove`, `list`, `init`, the global `--workspace` and `--json` flags, and the remaining `doctor` checks, on top of the commands the skeleton already delivered.
+
+**Blocked by:** 04 Walking skeleton
+
+**Status:** ready-for-agent
+
+- [ ] Given no daemon, when `add`, `remove` or `list` runs, then a daemon is started and the registry is updated through it, so the daemon stays the only writer of `workspaces.json`.
+- [ ] Given a directory, when `init` runs with no daemon, then `.tasklog/` exists and the first shim connection registers it; with a daemon running, `init` registers through it.
+- [ ] Given `start`, when run, then it spawns the daemon detached and returns once healthy.
+- [ ] Given any `--json` command (`status`, `list`, `doctor`, `import`), when run, then stdout is valid JSON and diagnostics go to stderr.
+- [ ] Given a newer daemon, when a command other than `stop` or `status` runs, then it exits 4; `stop` and `status` work against any protocol.
+- [ ] Given a usage error, when a command is mistyped, then it exits 2.
+- [ ] Given a broken install (stale `daemon.json`, unwritable log directory, `workspaces.json` unreadable, `claude` missing), when `doctor` runs, then each check reports `{name, ok, detail, fix}`, a missing `claude` is skipped not failed, it includes workspace `problems[]` when a daemon is up, and the exit code is 1 only if a check failed.
+- [ ] `--workspace <path>` is accepted by `init`, `status`, `list`, `doctor` and `shim` in place of the current directory.
