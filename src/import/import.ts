@@ -249,6 +249,14 @@ export function runImport(opts: ImportOptions): ImportReport {
       const v = t.effort === c.effort ? assigned.get(t)! : `${t.effort}/${pad(assigned.get(t)!)}`;
       if (!blocked.some((b) => b === v)) blocked.push(v);
     }
+    if (c.rewriteLinks) {
+      // `(task-N)` links to imported tickets become paths relative to the map/spec file.
+      c.body = c.body.replace(/\]\(([A-Za-z]+-\d+(?:\.\d+)*)\)/g, (m, ref: string) => {
+        const hit = owner.get(c)!.resolve(ref, c);
+        if (!hit || hit === 'ambiguous' || !assigned.has(hit)) return m;
+        return `](${hit.effort === c.effort ? '' : `../${hit.effort}/`}${dest(hit).replace(/^[^/]+\//, '')})`;
+      });
+    }
     const text = render(c, blocked);
     const parsed = parseItem(text);
     if (!parsed.ok) {

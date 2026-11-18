@@ -26,6 +26,8 @@ export interface Candidate {
   extras: string[];
   /** Native body, ready to write (LF, no trailing newline requirement). */
   body: string;
+  /** Map/spec bodies whose `(task-N)` links must become `(tickets/NN-slug.md)` once numbers are assigned. */
+  rewriteLinks?: boolean;
   /** A short label for messages. */
   label: string;
 }

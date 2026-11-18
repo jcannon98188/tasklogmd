@@ -7,7 +7,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Status } from '../model/parse.ts';
+import type { ItemType, Status } from '../model/parse.ts';
 import type { Candidate, LoadResult, Warning } from './types.ts';
 import { slugify } from '../model/create.ts';
 import { asList, normalizeText, splitFrontmatter, type YEntry, type YValue } from './yaml.ts';
@@ -31,7 +31,9 @@ const GROUPS: Array<{ dir: string; origin: Origin }> = [
   { dir: 'drafts', origin: 'drafts' },
   { dir: 'archive/drafts', origin: 'archive-drafts' },
 ];
-const SKIPPED_DIRS = ['docs', 'decisions', 'milestones', 'archive/docs', 'archive/decisions', 'archive/milestones'];
+const SKIPPED_DIRS = ['decisions', 'milestones', 'archive/docs', 'archive/decisions', 'archive/milestones'];
+const WAYFINDER_TYPE_RE = /^wayfinder[-:_ ]?(research|prototype|grilling|task)$/i;
+const WAYFINDER_DOC_RE = /^wayfinder[-:_ ]?(map|spec)$/i;
 const DEFAULT_STATUSES = ['To Do', 'In Progress', 'Done'];
 const CONSUMED = new Set(['id', 'title', 'status', 'created_date', 'updated_date', 'labels', 'dependencies', 'milestone', 'parent_task_id']);
 const RESERVED = new Set(['kind', 'type', 'claimed_by', 'blocked_by', 'tags', 'created', 'updated', 'imported_from']);
@@ -110,6 +112,9 @@ function cmpNumKey(a: string, b: string): number {
 const SENTINEL_RE = /^\s*<!--\s*(?:SECTION:[A-Z_]+:(?:BEGIN|END)|AC:(?:BEGIN|END)|DOD:(?:BEGIN|END))\s*-->\s*$/;
 const SECTION_MAP: Record<string, string> = {
   description: 'Question',
+  question: 'Question',
+  resolution: 'Answer',
+  answer: 'Answer',
   'acceptance criteria': 'Acceptance criteria',
   'implementation plan': 'Implementation plan',
   'implementation notes': 'Implementation notes',
@@ -120,7 +125,7 @@ const CANON = ['Question', 'Acceptance criteria', 'Implementation plan', 'Implem
 const trimBlank = (s: string): string => s.replace(/^\s*\n/, '').replace(/\s+$/, '');
 
 /** Strips sentinels, renames the known sections, numbers unnumbered ACs and puts sections in canonical order. */
-export function convertBacklogBody(body: string): string {
+export function convertBacklogBody(body: string, done = false): string {
   const lines = body.split('\n').filter((l) => !SENTINEL_RE.test(l));
   const pre: string[] = [];
   const secs: Array<{ name: string; known: boolean; lines: string[] }> = [];
@@ -160,12 +165,25 @@ export function convertBacklogBody(body: string): string {
     });
     emit('Acceptance criteria', trimBlank(numbered.join('\n')));
   }
-  for (const name of CANON.slice(2)) {
-    for (const s of secs.filter((x) => x.name === name && x.known)) {
-      const c = trimBlank(s.lines.join('\n'));
-      if (c) emit(name, c);
-    }
+  // A finished task's Final summary (else its Implementation notes) is its Answer, unless it already has one.
+  const text = (name: string) =>
+    secs
+      .filter((x) => x.name === name && x.known)
+      .map((s) => trimBlank(s.lines.join('\n')))
+      .filter(Boolean)
+      .join('\n\n');
+  let answer = text('Answer');
+  let promoted: string | null = null;
+  if (done && !answer) {
+    promoted = text('Final summary') ? 'Final summary' : text('Implementation notes') ? 'Implementation notes' : null;
+    if (promoted) answer = text(promoted);
   }
+  for (const name of CANON.slice(2)) {
+    if (name === promoted) continue;
+    const c = text(name);
+    if (c) emit(name, c);
+  }
+  if (answer) emit('Answer', answer);
   for (const s of secs.filter((x) => !x.known)) emit(s.name, trimBlank(s.lines.join('\n')));
   return out.join('\n\n');
 }
@@ -221,7 +239,8 @@ export function loadBacklog(opts: BacklogOptions): LoadResult {
 
   for (const d of SKIPPED_DIRS) {
     for (const f of mdFiles(path.join(opts.backlogDir, d))) {
-      notImported.push({ path: rel(opts.root, f), reason: `backlog ${d.replace('archive/', 'archive ')} are not imported` });
+      const reason = d.endsWith('milestones') ? `backlog ${d.replace('archive/', 'archive ')} are not imported as files; their titles name the efforts` : `backlog ${d.replace('archive/', 'archive ')} are not imported`;
+      notImported.push({ path: rel(opts.root, f), reason });
     }
   }
 
@@ -261,7 +280,12 @@ export function loadBacklog(opts: BacklogOptions): LoadResult {
       const s = slugify(t);
       if (s && !tags.includes(s)) tags.push(s);
     };
-    for (const l of asList(r.fm.get('labels'))) addTag(String(l));
+    let type: ItemType | undefined;
+    for (const l of asList(r.fm.get('labels'))) {
+      const w = WAYFINDER_TYPE_RE.exec(String(l).trim());
+      if (w) type ??= w[1]!.toLowerCase() as ItemType; // wayfinder-<type> labels become the native type
+      else addTag(String(l));
+    }
 
     // Status
     let status: Status;
@@ -315,23 +339,82 @@ export function loadBacklog(opts: BacklogOptions): LoadResult {
       slug: slugify(title) || 'task',
       title,
       status,
+      type,
       claimedBy,
       tags,
       created,
       updated,
       refs: asList(r.fm.get('dependencies')).map((d) => String(d).trim()).filter(Boolean),
       extras,
-      body: convertBacklogBody(r.body),
+      body: convertBacklogBody(r.body, status === 'resolved' || status === 'closed'),
       label: r.id,
     };
     candidates.push(c);
     rawOf.set(c, r);
   }
 
+  // Documents tagged `wayfinder:map` / `wayfinder:spec` become the effort's map/spec; the rest are reported.
+  const efforts = [...new Set(candidates.map((c) => c.effort))];
+  const claimedDoc = new Set<string>();
+  for (const file of mdFiles(path.join(opts.backlogDir, 'docs'))) {
+    const src = rel(opts.root, file);
+    let sp: ReturnType<typeof splitFrontmatter> | undefined;
+    try {
+      sp = splitFrontmatter(fs.readFileSync(file, 'utf8'));
+    } catch {
+      /* reported below as not imported */
+    }
+    const fm = sp && typeof sp !== 'string' ? new Map(sp.entries.map((e) => [e.key, e.value] as const)) : undefined;
+    const tagged = fm ? [...asList(fm.get('tags')), ...asList(fm.get('labels'))].map((t) => WAYFINDER_DOC_RE.exec(String(t).trim())) : [];
+    const kind = (tagged.find(Boolean)?.[1]?.toLowerCase() ?? '') as 'map' | 'spec' | '';
+    if (!sp || typeof sp === 'string' || !fm || !kind) {
+      notImported.push({ path: src, reason: 'backlog docs are not imported unless tagged wayfinder:map or wayfinder:spec' });
+      continue;
+    }
+    const tv = fm.get('title');
+    const title = typeof tv === 'string' && tv.trim() ? tv.trim() : path.basename(file, '.md').replace(/^.*? - /, '').trim();
+    const tslug = slugify(title).replace(/-(map|spec)$/, '');
+    const fslug = slugify(path.basename(file, '.md').replace(/^.*? - /, '')).replace(/-(map|spec)$/, '');
+    const effort = opts.effort ?? (opts.groupBy === 'none' ? 'backlog' : efforts.find((e) => e === tslug || e === fslug) ?? (efforts.length === 1 ? efforts[0] : undefined));
+    if (!effort) {
+      const message = `${kind} document "${title}" matches no effort (${efforts.join(', ') || 'none'}) and was not imported; rerun with --effort <name> to place it`;
+      warnings.push({ kind: 'dropped_value', source: src, message });
+      notImported.push({ path: src, reason: `wayfinder:${kind} document with no matching effort` });
+      continue;
+    }
+    if (claimedDoc.has(`${effort}/${kind}`)) {
+      warnings.push({ kind: 'not_overwritten', source: src, message: `${effort}/${kind}.md was already taken by another document; not imported` });
+      notImported.push({ path: src, reason: `second wayfinder:${kind} document for effort "${effort}"` });
+      continue;
+    }
+    claimedDoc.add(`${effort}/${kind}`);
+    const date = (v: YValue | undefined): string | undefined => (typeof v === 'string' ? /^\d{4}-\d{2}-\d{2}/.exec(v)?.[0] : undefined);
+    const created = date(fm.get('created_date')) ?? fs.statSync(file).mtime.toISOString().slice(0, 10);
+    candidates.push({
+      srcPath: src,
+      kind,
+      effort,
+      wantNum: null,
+      fresh: false,
+      slug: '',
+      title,
+      status: 'open',
+      tags: [],
+      created,
+      updated: date(fm.get('updated_date')) ?? created,
+      refs: [],
+      extras: [],
+      body: normalizeText(sp.body).split('\n').filter((l) => !SENTINEL_RE.test(l)).join('\n').trim(),
+      rewriteLinks: true,
+      label: `${effort}/${kind}`,
+    });
+  }
+
   const byIdC = new Map<string, Candidate[]>();
   const byNumC = new Map<string, Candidate[]>();
   for (const c of candidates) {
-    const r = rawOf.get(c)!;
+    const r = rawOf.get(c);
+    if (!r) continue; // map/spec documents are not dependency targets
     byIdC.set(norm(r.id), [...(byIdC.get(norm(r.id)) ?? []), c]);
     byNumC.set(r.numKey, [...(byNumC.get(r.numKey) ?? []), c]);
   }
