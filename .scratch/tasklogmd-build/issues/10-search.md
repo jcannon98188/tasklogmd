@@ -4,7 +4,7 @@
 
 **Blocked by:** 05 Parser, scan and read tools
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Given a title with diacritics, when searched without them, then it matches (case- and diacritic-folded).
 - [x] Given `"exact phrase"` and `-term`, when queried, then the phrase and exclusion are honoured against the stored token sequence; multi-word queries are an implicit AND with whole-word or prefix matching.
