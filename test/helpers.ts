@@ -23,6 +23,15 @@ export function mkWorkspace(parent: string, name = 'ws'): string {
   return root;
 }
 
+const FIXTURES = path.resolve(import.meta.dirname, 'fixtures', 'native');
+
+/** Copies a native fixture workspace (test/fixtures/native/<name>) into a fresh temp dir; returns its root. */
+export function copyFixture(name: string, parent: string = tmpDir(), as = name): string {
+  const dest = path.join(parent, as);
+  fs.cpSync(path.join(FIXTURES, name), dest, { recursive: true });
+  return fs.realpathSync.native(dest);
+}
+
 export class FakeClock implements Clock {
   private t = 1_000_000;
   private timers: Array<{ fn: () => void; ms: number; next: number }> = [];

@@ -6,7 +6,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { pidAlive, sleep } from '../../src/fsutil.ts';
 import { dataPaths } from '../../src/paths.ts';
-import { mkWorkspace, rmDir, tmpDir } from '../helpers.ts';
+import { copyFixture, mkWorkspace, rmDir, tmpDir } from '../helpers.ts';
 
 const CLI = path.resolve('dist', 'cli.js');
 
@@ -66,7 +66,7 @@ describe('stdio shim against a real detached daemon', () => {
 
     const client = await connect(sub);
     const tools = (await client.listTools()).tools.map((t) => t.name).sort();
-    expect(tools).toEqual(['init_workspace', 'workspace_status']);
+    expect(tools).toEqual(['get_item', 'init_workspace', 'list_items', 'workspace_status']);
 
     const res = await client.callTool({ name: 'workspace_status', arguments: {} });
     expect(res.isError).toBeFalsy();
@@ -148,5 +148,14 @@ describe('CLI', () => {
     const v = await runCli(['--version']);
     expect(v.code).toBe(0);
     expect(v.stdout).toMatch(/tasklog \S+ \(protocol 1\)/);
+  });
+  it('reads a fixture workspace through the shim: list_items then get_item', async () => {
+    const ws = copyFixture('normal', root);
+    const client = await connect(ws);
+    const list = await client.callTool({ name: 'list_items', arguments: { effort: 'alpha', status: 'open', kind: 'ticket' } });
+    expect(list.isError).toBeFalsy();
+    expect(text(list).items.map((i: { id: string }) => i.id)).toEqual(['alpha/03', 'alpha/04', 'alpha/10']);
+    const got = await client.callTool({ name: 'get_item', arguments: { id: 'alpha/03' } });
+    expect(text(got).frontmatter.title).toBe('Blocked prototype');
   });
 });
