@@ -139,7 +139,7 @@ export class WorkflowService {
       title = f.title;
       target = view.path.split("/").slice(2).join("/");
       if (f.status === kind.status) {
-        if ((sectionText(view.parse, 'Answer') ?? '') === answer) {
+        if ((sectionText(view.parse, 'Answer') ?? '').replace(/\r\n?/g, '\n') === answer) {
           steps.ticket = 'skipped';
           return null;
         }
@@ -229,8 +229,10 @@ export class WorkflowService {
     const note = a.note === undefined || a.note.trim() === '' ? undefined : a.note.replace(/\r\n?/g, '\n').trim();
     const wontfix = a.state === 'wontfix';
     await this.ticket(root, a.id);
+    let alreadyClosed = false;
     const r = await this.mutate(root, a.id, a.hash, (view) => {
       const f = view.parse.fields;
+      alreadyClosed = wontfix && f.status === 'closed';
       if (wontfix && (f.status === 'resolved')) throw new TaskLogError('bad_transition', { message: `${view.id} is resolved; it cannot be closed as wontfix.`, details: { id: view.id, status: f.status } });
       const keep = f.tags.filter((t) => !(TRIAGE_STATES as readonly string[]).includes(t) && !(a.category !== undefined && (TRIAGE_CATEGORIES as readonly string[]).includes(t)));
       const tags = [...keep, a.state, ...(a.category !== undefined ? [a.category] : [])];
@@ -245,9 +247,17 @@ export class WorkflowService {
     });
     let hash = r.hash;
     let changed = r.changed;
-    if (note !== undefined && !wontfix) {
+    // A note is the Answer when this call closes the ticket; otherwise (including a wontfix on an already-closed
+    // ticket, whose Answer is kept) it goes to ## Comments, or to the Answer when that is empty.
+    if (note !== undefined && (!wontfix || alreadyClosed)) {
       try {
-        const n = await this.mutate(root, a.id, undefined, (view) => ((sectionText(view.parse, 'Comments') ?? '').includes(note) ? null : { op: 'append_to_section', heading: 'Comments', content: note }));
+        const n = await this.mutate(root, a.id, undefined, (view): Edit | null => {
+          const comments = (sectionText(view.parse, 'Comments') ?? '').replace(/\r\n?/g, '\n');
+          const answer = (sectionText(view.parse, 'Answer') ?? '').replace(/\r\n?/g, '\n');
+          if (comments.includes(note) || answer === note) return null;
+          if (wontfix && answer === '') return { op: 'replace_section', heading: 'Answer', content: note };
+          return { op: 'append_to_section', heading: 'Comments', content: note };
+        });
         hash = n.hash;
         changed = changed || n.changed;
       } catch (e) {

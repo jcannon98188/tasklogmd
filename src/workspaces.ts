@@ -96,6 +96,7 @@ export class WorkspaceRegistry {
         this.roots.delete(r);
         changed = true;
         this.log.info('workspace.pruned', { workspace: r });
+        this.onUnregister?.(r); // release the index and watcher so a recreated workspace is indexed afresh
       }
     }
     if (changed) this.persist();

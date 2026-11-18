@@ -2,7 +2,9 @@
 // backlog.md writes: `key: value` lines, inline lists, block lists, quoted scalars and comments. Anything
 // more exotic under a key is kept as raw text so it can be carried over verbatim.
 
-export type YValue = string | number | boolean | null | YValue[];
+import { scalar, splitInline, stripComment, type FmValue } from '../model/parse.ts';
+
+export type YValue = FmValue;
 
 export interface YEntry {
   key: string;
@@ -17,55 +19,6 @@ export interface Split {
 }
 
 export const normalizeText = (text: string): string => (text.charCodeAt(0) === 0xfeff ? text.slice(1) : text).replace(/\r\n?/g, '\n');
-
-export function scalar(raw: string): YValue {
-  const s = raw.trim();
-  if (s === '' || s === '~' || s === 'null') return null;
-  if (s === 'true') return true;
-  if (s === 'false') return false;
-  if (/^-?\d+$/.test(s)) return Number(s);
-  if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) {
-    try {
-      return JSON.parse(s) as string;
-    } catch {
-      return s.slice(1, -1);
-    }
-  }
-  if (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) return s.slice(1, -1).replace(/''/g, "'");
-  return s;
-}
-
-function stripComment(v: string): string {
-  let quote: string | null = null;
-  for (let i = 0; i < v.length; i++) {
-    const c = v[i]!;
-    if (quote) {
-      if (c === quote) quote = null;
-    } else if (c === '"' || c === "'") quote = c;
-    else if (c === '#' && (i === 0 || /\s/.test(v[i - 1]!))) return v.slice(0, i);
-  }
-  return v;
-}
-
-function splitInline(inner: string): string[] {
-  const parts: string[] = [];
-  let cur = '';
-  let quote: string | null = null;
-  for (const c of inner) {
-    if (quote) {
-      cur += c;
-      if (c === quote) quote = null;
-    } else if (c === '"' || c === "'") {
-      quote = c;
-      cur += c;
-    } else if (c === ',') {
-      parts.push(cur);
-      cur = '';
-    } else cur += c;
-  }
-  if (cur.trim() !== '') parts.push(cur);
-  return parts.map((p) => p.trim());
-}
 
 /** Splits `---` frontmatter from the body. Returns an error string when the file has no valid frontmatter. */
 export function splitFrontmatter(input: string): Split | string {
@@ -124,14 +77,3 @@ export function yamlStr(s: string): string {
 }
 
 export const asList = (v: YValue | undefined): YValue[] => (v === undefined || v === null ? [] : Array.isArray(v) ? v : [v]);
-
-/** Lowercase kebab-case, `[a-z0-9-]` only; '' when nothing usable remains. */
-export function slugify(s: string, max = 60): string {
-  const slug = s
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return slug.slice(0, max).replace(/-+$/g, '');
-}

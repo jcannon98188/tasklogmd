@@ -140,6 +140,33 @@ export function identify(relToTasklog: string): { effort: string; id: string; la
   return null;
 }
 
+/**
+ * The path decides the item's identity, the frontmatter its kind. When they disagree (a `kind: spec` file under
+ * `tickets/`, say) the entry is invalid, so tools that need a `ticket` never see it. The shared store result is
+ * untouched: only this path's entry carries the invalid view.
+ */
+function disagreesWithLayout(parse: ParseResult, layoutKind: Kind): ParseResult {
+  if (!parse.ok || parse.fields.kind === layoutKind) return parse;
+  const where = layoutKind === 'ticket' ? 'under tickets/' : `as ${layoutKind}.md`;
+  return {
+    ok: false,
+    hash: parse.hash,
+    bom: parse.bom,
+    eol: parse.eol,
+    text: parse.text,
+    error: `the file is ${where} but its frontmatter says "kind: ${parse.fields.kind}"; set kind to ${layoutKind} or move the file`,
+  };
+}
+
+/** Full Item IDs of an entry's `blocked_by`: same-effort numbers are resolved against the entry's effort. */
+export function resolveBlockers(e: IndexEntry): string[] {
+  if (!e.parse.ok) return [];
+  return e.parse.fields.blockedBy.map((b) => {
+    if (typeof b === 'number') return `${e.effort}/${pad(b)}`;
+    return /^\d+$/.test(b) ? `${e.effort}/${pad(Number(b))}` : normalizeId(b);
+  });
+}
+
 const kindRank = (e: IndexEntry): number => (e.layoutKind === 'map' ? -2 : e.layoutKind === 'spec' ? -1 : (e.number ?? 0));
 
 function compareEntries(a: IndexEntry, b: IndexEntry): number {
@@ -208,12 +235,13 @@ export class WorkspaceIndex {
     if (!ident) return null;
     const p = relPath.startsWith(`${TASKLOG_DIR}/`) ? relPath : `${TASKLOG_DIR}/${relPath}`;
     const old = this.byPath.get(p);
-    const parse = this.store.acquire(bytes);
-    if (old && old.hash === parse.hash) {
-      this.store.release(parse.hash); // already held by `old`
+    const stored = this.store.acquire(bytes);
+    const parse = disagreesWithLayout(stored, ident.layoutKind);
+    if (old && old.hash === stored.hash) {
+      this.store.release(stored.hash); // already held by `old`
       return false;
     }
-    const entry: IndexEntry = { path: p, ...ident, hash: parse.hash, parse, since: this.now() };
+    const entry: IndexEntry = { path: p, ...ident, hash: stored.hash, parse, since: this.now() };
     if (!parse.ok && old) entry.lastGoodHash = old.parse.ok ? old.hash : old.lastGoodHash;
     if (old) this.detach(old);
     this.attach(entry);
@@ -280,6 +308,8 @@ export class WorkspaceIndex {
               return { f, bytes: await fs.promises.readFile(path.join(this.root, TASKLOG_DIR, ...f.split('/'))) };
             } catch (e) {
               log.warn('scan.read_failed', { workspace: this.root, path: f, error: (e as Error).message });
+              // A file that exists but cannot be read right now (EBUSY/EPERM) keeps its indexed entry; only ENOENT means gone.
+              if ((e as NodeJS.ErrnoException).code !== 'ENOENT') seen.add(`${TASKLOG_DIR}/${f}`);
               return null;
             }
           }),
@@ -383,14 +413,6 @@ export class WorkspaceIndex {
     };
   }
 
-  private resolveBlockers(e: IndexEntry): string[] {
-    if (!e.parse.ok) return [];
-    return e.parse.fields.blockedBy.map((b) => {
-      if (typeof b === 'number') return `${e.effort}/${pad(b)}`;
-      return /^\d+$/.test(b) ? `${e.effort}/${pad(Number(b))}` : normalizeId(b);
-    });
-  }
-
   private toListed(e: IndexEntry): ListedItem {
     const flags = this.flagsOf(e);
     if (!e.parse.ok) {
@@ -419,7 +441,7 @@ export class WorkspaceIndex {
       type: f.type ?? null,
       tags: f.tags,
       claimed_by: f.claimedBy ?? null,
-      blocked_by: this.resolveBlockers(e),
+      blocked_by: resolveBlockers(e),
       hash: e.hash,
       flags,
       path: e.path,

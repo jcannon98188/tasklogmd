@@ -242,3 +242,29 @@ describe('structure is preserved', () => {
     expect((parseItem(out) as ValidParse).extra).toEqual({ owner: 'jason', priority: 'high' });
   });
 });
+
+describe('review fixes: edit_ac and headings', () => {
+  it('edit_ac on a numbered AC with empty text keeps a separating space', () => {
+    for (const line of ['- [ ] #3', '- [ ] #3 ', '- [ ] #3   ']) {
+      const text = `---\nkind: ticket\ntitle: T\nstatus: open\n---\n\n## Acceptance criteria\n\n${line}\n`;
+      const res = run(text, { op: 'edit_ac', n: 3, text: 'hello' }, { id: 'demo/03', effort: 'demo' });
+      expect(res.text).toContain('- [ ] #3 hello\n');
+      const p = parseItem(res.text);
+      expect(p.ok && p.acs[0]).toMatchObject({ n: 3, text: 'hello' });
+    }
+  });
+
+  it('a heading ending in # round-trips and does not append a duplicate section', () => {
+    const text = `---\nkind: ticket\ntitle: T\nstatus: open\n---\n\n## Learn C#\n\nold\n`;
+    const p = parseItem(text);
+    expect(p.ok && p.sections[0]!.heading).toBe('Learn C#');
+    const res = run(text, { op: 'replace_section', heading: 'Learn C#', content: 'new' });
+    expect(res.text).toContain('## Learn C#\n\nnew\n');
+    expect(res.text.match(/^## /gm)).toHaveLength(1);
+  });
+
+  it('strips only closing hash sequences preceded by whitespace', () => {
+    const p = parseItem(`---\nkind: ticket\ntitle: T\nstatus: open\n---\n\n## Closed ##\n\n## Also closed #\n\n## F#\n`);
+    expect(p.ok && p.sections.map((s) => s.heading)).toEqual(['Closed', 'Also closed', 'F#']);
+  });
+});

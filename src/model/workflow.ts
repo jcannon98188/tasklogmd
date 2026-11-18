@@ -2,7 +2,7 @@
 // Pure with respect to the file system; the clock is passed in so staleness is testable.
 
 import { TaskLogError } from '../errors.ts';
-import { normalizeId, pad, type IndexEntry, type WorkspaceIndex } from './index.ts';
+import { normalizeId, resolveBlockers, type IndexEntry, type WorkspaceIndex } from './index.ts';
 import type { ValidParse } from './parse.ts';
 
 export const DEFAULT_STALE_MS = 24 * 3600 * 1000;
@@ -87,14 +87,6 @@ export interface FrontierOptions {
   tags?: string[];
   staleMs?: number;
   now: number;
-}
-
-function resolveBlockers(e: IndexEntry): string[] {
-  if (!e.parse.ok) return [];
-  return e.parse.fields.blockedBy.map((b) => {
-    if (typeof b === 'number') return `${e.effort}/${pad(b)}`;
-    return /^\d+$/.test(b) ? `${e.effort}/${pad(Number(b))}` : normalizeId(b);
-  });
 }
 
 function ticketEntries(idx: WorkspaceIndex, effort: string): IndexEntry[] {

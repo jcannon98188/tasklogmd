@@ -296,7 +296,10 @@ function setState(p0: ValidParse, e: Extract<Edit, { op: 'set_state' }>): string
 
 // ---- sections -------------------------------------------------------------------------------------------
 
-const normHeading = (h: string): string => h.replace(/^#+\s*/, '').trim().toLowerCase();
+/** Drops a closing hash sequence, but only when whitespace precedes it (so `C#` stays `C#`). */
+const stripClosingHashes = (h: string): string => h.replace(/[ \t]+#+$/, '');
+
+const normHeading = (h: string): string => stripClosingHashes(h.replace(/^#+\s*/, '').trim()).trim().toLowerCase();
 
 function findSection(p: ValidParse, heading: string) {
   return p.sections.find((s) => normHeading(s.heading) === normHeading(heading));
@@ -443,7 +446,9 @@ function editAc(p: ValidParse, e: Extract<Edit, { op: 'edit_ac' }>, ctx: EditCon
   const text = acText(e.text);
   const ac = findAc(p, e.n, ctx);
   const from = ac.end - ac.text.length;
-  return { text: splice(p.text, from, ac.end, text), n: e.n };
+  // An AC with empty text has nothing after "#N" to separate the new text from it.
+  const sep = ac.n !== null && from > 0 && !/\s/.test(p.text[from - 1]!) ? ' ' : '';
+  return { text: splice(p.text, from, ac.end, sep + text), n: e.n };
 }
 
 function toggleAc(p: ValidParse, e: Extract<Edit, { op: 'toggle_ac' }>, ctx: EditContext): EditResult {

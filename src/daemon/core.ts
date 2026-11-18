@@ -214,6 +214,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<RunningDaemon> {
           protocol,
           pid,
           uptime: Math.round((clock.now() - startedAt) / 1000),
+          draining,
           workspaces: registry.list(),
         });
         return;

@@ -195,3 +195,37 @@ describe('WorkspaceIndex.get and conflicts', () => {
     expect(() => idx.get('e/99')).toThrowError(/No item/);
   });
 });
+
+describe('WorkspaceIndex.scan', () => {
+  it('keeps indexed items whose file read fails transiently, but drops files that are really gone', async () => {
+    const fs = await import('node:fs');
+    const { tmpDir, rmDir } = await import('../helpers.ts');
+    const { vi } = await import('vitest');
+    const root = tmpDir();
+    try {
+      const dir = `${root}/.tasklog/e/tickets`;
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(`${dir}/01-a.md`, item('One'));
+      fs.writeFileSync(`${dir}/02-b.md`, item('Two'));
+      const idx = new WorkspaceIndex(root, new ParsedItemStore(), { log });
+      await idx.scan('initial');
+      expect(idx.size).toBe(2);
+
+      const real = fs.promises.readFile;
+      const spy = vi.spyOn(fs.promises, 'readFile').mockImplementation(((p: any, ...rest: any[]) =>
+        String(p).endsWith('01-a.md')
+          ? Promise.reject(Object.assign(new Error('busy'), { code: 'EBUSY' }))
+          : (real as any)(p, ...rest)) as any);
+      try {
+        fs.rmSync(`${dir}/02-b.md`);
+        const stats = await idx.scan('again');
+        expect(stats.removed).toBe(1);
+      } finally {
+        spy.mockRestore();
+      }
+      expect(idx.entries().map((e) => e.id)).toEqual(['e/01']);
+    } finally {
+      rmDir(root);
+    }
+  });
+});

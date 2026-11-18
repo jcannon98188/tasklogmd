@@ -321,3 +321,36 @@ describe('set_fields guard', () => {
     expect(read(root, '.tasklog/e/tickets/01-one.md')).toBe(before);
   });
 });
+
+describe('review fixes: retry and wontfix note', () => {
+  it('a retry after partial matches a multi-line Answer in a CRLF ticket', async () => {
+    const { root, d, t } = await setup();
+    await t('create_item', { effort: 'e', title: 'Pick DB', question: 'Which?' });
+    const file = '.tasklog/e/tickets/01-pick-db.md';
+    fs.writeFileSync(abs(root, file), read(root, file).replace(/\r?\n/g, '\r\n'));
+    d.writes.beforeRename = (w) => {
+      if (w.id === 'e/map') throw new Error('disk full');
+    };
+    const answer = 'Line one.\n\nLine two.';
+    expect(errCode(await t('resolve', { id: 'e/01', answer, gist: 'SQLite' }))).toBe('partial');
+    expect(read(root, file)).toContain('\r\n');
+    d.writes.beforeRename = undefined;
+    const retry = await t('resolve', { id: 'e/01', answer, gist: 'SQLite' });
+    expect(retry.isError).toBeFalsy();
+    expect(retry.structuredContent.steps).toMatchObject({ ticket: 'skipped', map: 'ok' });
+  });
+
+  it('triage wontfix with a note on an already-closed ticket keeps the note', async () => {
+    const { root, t } = await setup();
+    await t('create_item', { effort: 'e', title: 'Old', question: 'q' });
+    await t('close', { id: 'e/01', reason: 'Because.' });
+    const r = await t('triage', { id: 'e/01', state: 'wontfix', note: 'Extra context.' });
+    expect(r.isError).toBeFalsy();
+    const text = read(root, '.tasklog/e/tickets/01-old.md');
+    expect(text).toContain('## Answer\n\nBecause.');
+    expect(text).toContain('## Comments\n\nExtra context.');
+    // idempotent
+    const again = await t('triage', { id: 'e/01', state: 'wontfix', note: 'Extra context.' });
+    expect(again.structuredContent.changed).toBe(false);
+  });
+});
