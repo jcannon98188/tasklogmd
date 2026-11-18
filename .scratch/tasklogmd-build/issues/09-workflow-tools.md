@@ -4,7 +4,7 @@
 
 **Blocked by:** 08 Creation and numbering
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Given blockers resolved or closed, when `frontier` runs, then the ticket is ready; a missing, conflicted or invalid blocker keeps it blocked with a reason; cross-effort blockers resolve the same way.
 - [x] Given an open ticket, when two claimants claim it, then one succeeds and the other gets `already_claimed` carrying `claimed_by`; the same claimant twice is idempotent.
