@@ -6,11 +6,22 @@
 
 **Status:** ready-for-agent
 
-- [ ] Given no daemon, when `add`, `remove` or `list` runs, then a daemon is started and the registry is updated through it, so the daemon stays the only writer of `workspaces.json`.
-- [ ] Given a directory, when `init` runs with no daemon, then `.tasklog/` exists and the first shim connection registers it; with a daemon running, `init` registers through it.
-- [ ] Given `start`, when run, then it spawns the daemon detached and returns once healthy.
-- [ ] Given any `--json` command (`status`, `list`, `doctor`, `import`), when run, then stdout is valid JSON and diagnostics go to stderr.
-- [ ] Given a newer daemon, when a command other than `stop` or `status` runs, then it exits 4; `stop` and `status` work against any protocol.
-- [ ] Given a usage error, when a command is mistyped, then it exits 2.
-- [ ] Given a broken install (stale `daemon.json`, unwritable log directory, `workspaces.json` unreadable, `claude` missing), when `doctor` runs, then each check reports `{name, ok, detail, fix}`, a missing `claude` is skipped not failed, it includes workspace `problems[]` when a daemon is up, and the exit code is 1 only if a check failed.
-- [ ] `--workspace <path>` is accepted by `init`, `status`, `list`, `doctor` and `shim` in place of the current directory.
+- [x] Given no daemon, when `add`, `remove` or `list` runs, then a daemon is started and the registry is updated through it, so the daemon stays the only writer of `workspaces.json`.
+- [x] Given a directory, when `init` runs with no daemon, then `.tasklog/` exists and the first shim connection registers it; with a daemon running, `init` registers through it.
+- [x] Given `start`, when run, then it spawns the daemon detached and returns once healthy.
+- [x] Given any `--json` command (`status`, `list`, `doctor`, `import`), when run, then stdout is valid JSON and diagnostics go to stderr.
+- [x] Given a newer daemon, when a command other than `stop` or `status` runs, then it exits 4; `stop` and `status` work against any protocol.
+- [x] Given a usage error, when a command is mistyped, then it exits 2.
+- [x] Given a broken install (stale `daemon.json`, unwritable log directory, `workspaces.json` unreadable, `claude` missing), when `doctor` runs, then each check reports `{name, ok, detail, fix}`, a missing `claude` is skipped not failed, it includes workspace `problems[]` when a daemon is up, and the exit code is 1 only if a check failed.
+- [x] `--workspace <path>` is accepted by `init`, `status`, `list`, `doctor` and `shim` in place of the current directory.
+
+## Comments
+
+Implemented on branch .
+
+-  rewritten around a per-command arg spec (unknown command, unknown flag, missing value or wrong positional count is exit 2, usage on stderr).  gained test seams  and .  is still ticket 13 (currently exit 2 as an unknown command).
+- :  now returns . New checks:  (fresh/absent/stale, judged before the daemon is ensured, so a stale file fails and is then replaced),  (read straight from the file before the daemon starts, since the daemon sets a corrupt file aside),  (via  over , new ),  (PATH lookup, then ; skipped as ok when claude is absent). Ticket 05 must keep  returning  and .
+- Doctor with a newer daemon prints its checks (protocol check fails) and exits 4, not 1.
+-  json gained ;  filters to that workspace.
+-  with no daemon only creates  and never starts one; with a daemon it POSTs .
+- Tests:  (in-process, spawn seam), plus one e2e. The e2e doctor test tolerates the machine's real  lacking a tasklog registration.
