@@ -137,11 +137,24 @@ describe('CLI', () => {
 
   it('doctor starts the daemon, passes and exits 0, with --json output', async () => {
     const d = await runCli(['doctor', '--json']);
-    expect(d.code).toBe(0);
     const out = JSON.parse(d.stdout);
-    expect(out.ok).toBe(true);
+    // The machine's real claude may or may not have tasklog registered; every other check must pass.
+    expect(out.checks.filter((c: any) => c.name !== 'claude-mcp').every((c: any) => c.ok)).toBe(true);
+    if (out.checks.find((c: any) => c.name === 'claude-mcp').ok) expect(d.code).toBe(0);
     expect(out.checks.map((c: any) => c.name)).toEqual(expect.arrayContaining(['node-version', 'daemon-health', 'protocol']));
     expect((await runCli(['status'])).code).toBe(0);
+  });
+
+  it('start spawns a detached daemon; add/list/remove go through it; usage error exits 2', async () => {
+    const started = await runCli(['start']);
+    expect(started.code).toBe(0);
+    expect((await runCli(['status'])).code).toBe(0);
+    const ws = mkWorkspace(root);
+    expect((await runCli(['add', ws])).code).toBe(0);
+    const list = await runCli(['list', '--json']);
+    expect(JSON.parse(list.stdout).workspaces).toHaveLength(1);
+    expect((await runCli(['remove', ws])).code).toBe(0);
+    expect((await runCli(['frobnicate'])).code).toBe(2);
   });
 
   it('prints version and protocol', async () => {
