@@ -14,6 +14,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "prepublishOnly": "npm run typecheck && npm run build",
     "typecheck": "tsc --noEmit",
     "test": "npm run build && vitest run",
     "test:unit": "vitest run test/unit",
