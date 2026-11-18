@@ -1,0 +1,38 @@
+{
+  "date": "2026-11-18T03:29:11.550Z",
+  "claude": "2.1.327 (Claude Code)",
+  "winner": "cmdstart",
+  "results": [
+    {
+      "approach": "spawn",
+      "points": {
+        "1 normal exit": true,
+        "3 second session reuses daemon": true,
+        "2 taskkill /T /F": false,
+        "4 no console window at spawn": true,
+        "5 terminal closed": true
+      },
+      "notes": [
+        "tree kill: daemon alive=false, shim alive=false, claude alive=false",
+        "window watcher saw 0 new visible windows total",
+        "terminal close: closed 853560|992|CASCADIA_HOSTING_WINDOW_CLASS|claude  -p \"Call the MCP tool slow from the spike1-shim server exactly once, then reply with only its result.\" --model haiku --allowedTools mcp__spike1-shim__ping,mcp__spike1-shim__slow --no-session-persistence"
+      ]
+    },
+    {
+      "approach": "cmdstart",
+      "points": {
+        "1 normal exit": true,
+        "3 second session reuses daemon": true,
+        "2 taskkill /T /F": true,
+        "4 no console window at spawn": true,
+        "5 terminal closed": true
+      },
+      "notes": [
+        "tree kill: daemon alive=true, shim alive=false, claude alive=false",
+        "window watcher saw 0 new visible windows total",
+        "terminal close: closed 2296160|7496|CASCADIA_HOSTING_WINDOW_CLASS|claude  -p \"Call the MCP tool slow from the spike1-shim server exactly once, then reply with only its result.\" --model haiku --allowedTools mcp__spike1-shim__ping,mcp__spike1-shim__slow --no-session-persistence"
+      ],
+      "winner": true
+    }
+  ]
+}
