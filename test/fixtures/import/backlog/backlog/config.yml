@@ -1,0 +1,4 @@
+project_name: "Demo"
+statuses: ["To Do", "In Progress", "Review", "Done"]
+default_status: "To Do"
+task_prefix: "back"

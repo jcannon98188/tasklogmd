@@ -6,6 +6,7 @@ import path from 'node:path';
 import { TaskLogError } from '../errors.ts';
 import type { Logger } from '../log.ts';
 import { KINDS, STATUSES, TYPES, type FmValue, type Kind, type ParseResult, type ValidParse } from './parse.ts';
+import { makeSnippet, matchItem, parseQuery, type SearchField } from './search.ts';
 import type { ParsedItemStore } from './store.ts';
 
 export const TASKLOG_DIR = '.tasklog';
@@ -41,6 +42,10 @@ export interface ListQuery {
   tags_all?: string[];
   tags_any?: string[];
   tags_none?: string[];
+  /** Free-text query: words (AND, prefix), "phrases", -exclusions. */
+  text?: string;
+  /** With `text`: add a ~160-character excerpt to each row. */
+  snippet?: boolean;
   limit?: number;
   cursor?: string;
 }
@@ -60,6 +65,10 @@ export interface ListedItem {
   flags: ItemFlag[];
   /** Workspace-relative path; the only way to tell apart the files of a conflicted ID. */
   path: string;
+  /** Fields that hit `text` (empty without `text`). */
+  matched_in: SearchField[];
+  /** With `text` and `snippet: true`. */
+  snippet?: string;
   /** Present on invalid items: why the file does not parse. */
   error?: string;
 }
@@ -395,6 +404,7 @@ export class WorkspaceIndex {
         hash: e.hash,
         flags,
         path: e.path,
+        matched_in: [],
         error: e.parse.error,
       };
     }
@@ -411,6 +421,7 @@ export class WorkspaceIndex {
       hash: e.hash,
       flags,
       path: e.path,
+      matched_in: [],
     };
   }
 
@@ -432,7 +443,9 @@ export class WorkspaceIndex {
         throw new TaskLogError('bad_request', { message: `"${k}" must be one of ${allowed.join(', ')}; got "${v}".` });
       }
     }
-    const filterKey = JSON.stringify([q.effort, q.kind, q.status, q.type, all, any, none]);
+    const query = q.text !== undefined ? parseQuery(q.text) : undefined;
+    const textQuery = query && !query.empty ? query : undefined;
+    const filterKey = JSON.stringify([q.effort, q.kind, q.status, q.type, all, any, none, q.text ?? null]);
 
     let offset = 0;
     if (q.cursor !== undefined) {
@@ -449,6 +462,7 @@ export class WorkspaceIndex {
     }
 
     const matches: IndexEntry[] = [];
+    const textMatch = new Map<IndexEntry, { score: number; matched_in: SearchField[] }>();
     for (const e of this.entries()) {
       if (q.effort !== undefined && e.effort !== q.effort) continue;
       const f = e.parse.ok ? e.parse.fields : null;
@@ -459,11 +473,27 @@ export class WorkspaceIndex {
       if (all.length && !all.every((t) => tags.includes(t))) continue;
       if (any.length && !any.some((t) => tags.includes(t))) continue;
       if (none.length && none.some((t) => tags.includes(t))) continue;
+      if (textQuery) {
+        const m = matchItem(textQuery, this.store.search(e.hash), e.id);
+        if (!m) continue;
+        textMatch.set(e, m);
+      }
       matches.push(e);
     }
+    // Best score first; the sort is stable, so ties keep effort-then-ticket-number order.
+    if (textQuery) matches.sort((a, b) => textMatch.get(b)!.score - textMatch.get(a)!.score);
     const page = matches.slice(offset, offset + limit);
     const next = offset + limit;
-    const result: ListResult = { items: page.map((e) => this.toListed(e)), total: matches.length };
+    const items = page.map((e) => {
+      const row = this.toListed(e);
+      const m = textMatch.get(e);
+      if (m) {
+        row.matched_in = m.matched_in;
+        if (q.snippet && e.parse.ok) row.snippet = makeSnippet(textQuery!, e.parse.fields.title, e.parse.body);
+      }
+      return row;
+    });
+    const result: ListResult = { items, total: matches.length };
     if (next < matches.length) {
       result.cursor = Buffer.from(JSON.stringify({ v: this.version, o: next, k: filterKey })).toString('base64url');
     }

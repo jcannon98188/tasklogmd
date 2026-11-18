@@ -3,6 +3,7 @@ import path from 'node:path';
 import { callDaemon, ensureDaemon, EnsureDaemonError, probeDaemon, stopDaemon, type Probe } from './client.ts';
 import { runDaemonProcess } from './daemon/run.ts';
 import { runDoctor } from './doctor.ts';
+import { formatReport, ImportUsageError, runImport } from './import/import.ts';
 import { createLogger, parseLevel, shimLoggerOptions, type Logger } from './log.ts';
 import { dataPaths, type DataPaths } from './paths.ts';
 import { runShim } from './shim.ts';
@@ -34,6 +35,8 @@ const USAGE = `usage: tasklog <command> [options]
   add <path>                           register a workspace
   remove <path>                        unregister a workspace
   list [--json] [--workspace <p>]      list registered workspaces
+  import <path> [--dry-run] [--json] [--effort <name>] [--group-by none]
+                                       convert a backlog or scratch layout into .tasklog/
   doctor [--json] [--workspace <p>]    verify the install
   --version                            print version and protocol
 exit codes: 0 ok, 1 failed, 2 usage, 3 no daemon (status), 4 daemon newer than this CLI
@@ -51,6 +54,7 @@ const SPEC: Record<string, { flags: string[]; values: string[]; positionals: num
   remove: { flags: [], values: [], positionals: 1 },
   list: { flags: ['--json'], values: ['--workspace'], positionals: 0 },
   doctor: { flags: ['--json'], values: ['--workspace'], positionals: 0 },
+  import: { flags: ['--json', '--dry-run'], values: ['--effort', '--group-by'], positionals: 1 },
 };
 
 interface Parsed {
@@ -122,6 +126,8 @@ export async function runCommand(argv: string[], io: CliIo): Promise<number> {
     io.stderr(`tasklog: ${s}\n`);
     return code;
   };
+
+  const usageFail = (s: string) => fail(s, EXIT.usage);
 
   /** Finds a compatible daemon or starts one. A newer daemon yields exit 4 (the caller returns the code). */
   async function needDaemon(): Promise<{ probe: Probe } | { code: number }> {
@@ -247,6 +253,26 @@ export async function runCommand(argv: string[], io: CliIo): Promise<number> {
       else if (list.length === 0) out('no workspaces registered');
       else for (const w of list) out(`${w.root}  ${w.state}`);
       return EXIT.ok;
+    }
+
+    case 'import': {
+      const effort = args.values['--effort'];
+      const groupBy = args.values['--group-by'];
+      if (effort !== undefined && !/^[a-z0-9][a-z0-9-]*$/.test(effort)) {
+        return usageFail(`--effort must be a lowercase kebab-case name, got "${effort}"`);
+      }
+      if (groupBy !== undefined && groupBy !== 'none' && groupBy !== 'milestone') {
+        return usageFail(`--group-by must be "none" or "milestone", got "${groupBy}"`);
+      }
+      try {
+        // In-process and offline: no daemon is started or contacted.
+        const rep = runImport({ path: args.positionals[0]!, cwd: io.cwd, dryRun: args.flags.has('--dry-run'), effort, groupBy });
+        out(json ? JSON.stringify(rep) : formatReport(rep));
+        return rep.skipped.length > 0 ? EXIT.failed : EXIT.ok;
+      } catch (e) {
+        if (e instanceof ImportUsageError) return usageFail(e.message);
+        return fail(`import failed: ${(e as Error).message}`);
+      }
     }
 
     case 'doctor': {

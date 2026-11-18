@@ -1,4 +1,5 @@
 import { parseItem, type ParseResult } from './parse.ts';
+import { buildSearchData, type SearchData } from './search.ts';
 
 /**
  * The parsed-item store (spec section 4): global to the daemon, keyed by content hash of the file bytes,
@@ -8,7 +9,7 @@ import { parseItem, type ParseResult } from './parse.ts';
  * Contract for indexes: every `acquire` must be balanced by exactly one `release` of the same hash.
  */
 export class ParsedItemStore {
-  private readonly entries = new Map<string, { result: ParseResult; refs: number }>();
+  private readonly entries = new Map<string, { result: ParseResult; refs: number; search: SearchData | null }>();
   /** Number of times bytes were actually parsed (a cache miss). For tests and `scan.finished` stats. */
   parseCount = 0;
 
@@ -28,7 +29,7 @@ export class ParsedItemStore {
       return existing.result;
     }
     this.parseCount++;
-    this.entries.set(result.hash, { result, refs: 1 });
+    this.entries.set(result.hash, { result, refs: 1, search: buildSearchData(result) });
     return result;
   }
 
@@ -41,6 +42,11 @@ export class ParsedItemStore {
 
   get(hash: string): ParseResult | undefined {
     return this.entries.get(hash)?.result;
+  }
+
+  /** Search tokens computed once when the content was first parsed (null for invalid files). */
+  search(hash: string): SearchData | null {
+    return this.entries.get(hash)?.search ?? null;
   }
 
   has(hash: string): boolean {
