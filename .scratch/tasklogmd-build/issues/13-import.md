@@ -4,7 +4,7 @@
 
 **Blocked by:** 05 Parser, scan and read tools
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Given the scratch fixture (a copy of the wayfinder effort in this repo), when imported, then the output equals the checked-in golden tree, `issues/` links are rewritten to `tickets/`, and `imported_from` is set on every item.
 - [x] Given the backlog fixture, when imported, then milestones become efforts (unmilestoned tasks go to `backlog`), prefixes are dropped and numbers kept, and subtasks get fresh numbers with `parent-NNN` tags.
