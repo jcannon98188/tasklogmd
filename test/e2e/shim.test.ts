@@ -66,7 +66,7 @@ describe('stdio shim against a real detached daemon', () => {
 
     const client = await connect(sub);
     const tools = (await client.listTools()).tools.map((t) => t.name).sort();
-    expect(tools).toEqual(['get_item', 'init_workspace', 'list_items', 'workspace_status']);
+    expect(tools).toEqual(expect.arrayContaining(['get_item', 'init_workspace', 'list_items', 'workspace_status']));
 
     const res = await client.callTool({ name: 'workspace_status', arguments: {} });
     expect(res.isError).toBeFalsy();
@@ -105,6 +105,22 @@ describe('stdio shim against a real detached daemon', () => {
     await b.callTool({ name: 'workspace_status', arguments: {} });
     const pid2 = JSON.parse(fs.readFileSync(dataPaths(home).daemonJson, 'utf8')).pid;
     expect(pid2).toBe(pid1);
+  });
+
+  it('edits an item through the shim: toggle_ac changes one line and a stale hash is refused', async () => {
+    const ws = copyFixture('normal', root);
+    const client = await connect(ws);
+    const rel = path.join(ws, '.tasklog', 'alpha', 'tickets', '03-blocked-prototype.md');
+    const before = fs.readFileSync(rel, 'utf8');
+    const got = await client.callTool({ name: 'get_item', arguments: { id: 'alpha/03' } });
+    const hash = text(got).hash;
+    const r = await client.callTool({ name: 'toggle_ac', arguments: { id: 'alpha/03', hash, n: 1 } });
+    expect(r.isError).toBeFalsy();
+    expect(fs.readFileSync(rel, 'utf8')).toBe(before.replace('- [ ] #1 First', '- [x] #1 First'));
+    expect(text(r).hash).not.toBe(hash);
+    const stale = await client.callTool({ name: 'toggle_ac', arguments: { id: 'alpha/03', hash, n: 2 } });
+    expect(stale.isError).toBe(true);
+    expect(text(stale).error.code).toBe('stale_hash');
   });
 });
 
