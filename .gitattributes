@@ -1,0 +1,2 @@
+# Fixture bytes (CRLF, BOM) must survive checkout untouched.
+test/fixtures/** -text

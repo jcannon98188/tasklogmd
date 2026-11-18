@@ -43,6 +43,10 @@ export interface WorkspaceRecord {
  */
 export class WorkspaceRegistry {
   private roots = new Set<string>();
+  /** Hooks wired by the daemon: workspace model lifecycle and indexing state. */
+  onRegister?: (root: string) => void;
+  onUnregister?: (root: string) => void;
+  stateOf?: (root: string) => 'indexing' | 'ready';
 
   constructor(
     private readonly paths: DataPaths,
@@ -124,6 +128,7 @@ export class WorkspaceRegistry {
       this.persist();
       this.log.info('workspace.registered', { workspace: canon, init: !!opts.init });
     }
+    this.onRegister?.(canon);
     return canon;
   }
 
@@ -138,12 +143,13 @@ export class WorkspaceRegistry {
     if (had) {
       this.persist();
       this.log.info('workspace.unregistered', { workspace: key });
+      this.onUnregister?.(key);
     }
     return had;
   }
 
   list(): WorkspaceRecord[] {
     this.prune();
-    return [...this.roots].sort().map((root) => ({ root, state: 'ready' as const }));
+    return [...this.roots].sort().map((root) => ({ root, state: this.stateOf?.(root) ?? ('ready' as const) }));
   }
 }

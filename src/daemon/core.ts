@@ -8,6 +8,7 @@ import { acquireLock, removeDaemonState, writeDaemonState, type Lock } from '../
 import { PROTOCOL, VERSION } from '../version.ts';
 import { WorkspaceRegistry } from '../workspaces.ts';
 import { createMcpServer, type RequestContext } from './mcp.ts';
+import { ModelManager } from './models.ts';
 
 export const IDLE_MS = 30 * 60 * 1000;
 
@@ -37,12 +38,18 @@ export interface DaemonOptions {
   version?: string;
   /** Called once after a full shutdown (the entry point calls process.exit here). */
   onExit?: (reason: string) => void;
+  /** How long a request waits on its workspace's initial scan before failing `indexing` (default 5 s). */
+  indexWaitMs?: number;
+  /** Test seam: awaited at the start of each workspace scan, to hold indexing open. */
+  beforeScan?: (root: string) => Promise<void>;
 }
 
 export interface RunningDaemon {
   readonly pid: number;
   readonly port: number;
   readonly token: string;
+  /** The in-memory model (parsed-item store plus workspace indexes); exposed for tests and in-process callers. */
+  readonly models: ModelManager;
   /** Drain in-flight requests, then release everything. Resolves when fully stopped. */
   shutdown(reason: string): Promise<void>;
   /** Resolves when the daemon has fully stopped. */
@@ -117,7 +124,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<RunningDaemon> {
   let server: http.Server | undefined;
   try {
     const registry = new WorkspaceRegistry(paths, log);
+    const models = new ModelManager(registry, log, { indexWaitMs: opts.indexWaitMs, beforeScan: opts.beforeScan });
     registry.load();
+    models.startAll();
 
     const token = randomBytes(32).toString('hex'); // 256 random bits, regenerated each start
     let port = 0;
@@ -173,7 +182,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<RunningDaemon> {
         cwd: header(req, 'x-tasklog-cwd'),
         requestId,
       };
-      const mcp = createMcpServer({ registry, log, version }, ctx);
+      const mcp = createMcpServer({ registry, models, log, version }, ctx);
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
       res.on('close', () => {
         void transport.close();
@@ -271,6 +280,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<RunningDaemon> {
           srv.close(() => r());
           srv.closeAllConnections();
         });
+        models.disposeAll();
         removeDaemonState(paths, pid, port);
         lock!.release();
         log.info('daemon.stop', { reason, version, protocol, pid, port });
@@ -280,7 +290,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<RunningDaemon> {
       return shutdownPromise;
     }
 
-    return { pid, port, token, shutdown, stopped };
+    return { pid, port, token, models, shutdown, stopped };
   } catch (e) {
     try {
       server?.close();

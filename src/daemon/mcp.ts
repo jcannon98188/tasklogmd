@@ -1,8 +1,13 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { isTaskLogError, TaskLogError } from '../errors.ts';
+import type { ListQuery } from '../model/index.ts';
 import type { Logger } from '../log.ts';
 import type { WorkspaceRegistry } from '../workspaces.ts';
+import type { ModelManager } from './models.ts';
+import { KINDS, STATUSES, TYPES } from '../model/parse.ts';
+import fs from 'node:fs';
+import path from 'node:path';
 import { VERSION } from '../version.ts';
 
 /** What the shim told the daemon about this request. */
@@ -16,6 +21,7 @@ export interface RequestContext {
 
 export interface McpDeps {
   registry: WorkspaceRegistry;
+  models: ModelManager;
   log: Logger;
   version?: string;
 }
@@ -57,10 +63,10 @@ export function createMcpServer(deps: McpDeps, ctx: RequestContext): McpServer {
   const server = new McpServer({ name: 'tasklog', version: deps.version ?? VERSION });
 
   const wrap =
-    <A>(fn: (args: A) => Record<string, unknown>) =>
-    (args: A) => {
+    <A>(fn: (args: A) => Record<string, unknown> | Promise<Record<string, unknown>>) =>
+    async (args: A) => {
       try {
-        return ok(fn(args));
+        return ok(await fn(args));
       } catch (e) {
         return toolError(e, ctx, deps.log);
       }
@@ -72,15 +78,67 @@ export function createMcpServer(deps: McpDeps, ctx: RequestContext): McpServer {
       description: 'Report the indexing state, counts, problems and recent warnings of the current workspace.',
       inputSchema: { workspace: z.string().optional().describe('Absolute workspace root; defaults to the shim\'s working directory workspace.') },
     },
-    wrap(({ workspace }: { workspace?: string }) => {
+    wrap(async ({ workspace }: { workspace?: string }) => {
       const root = resolveWorkspace(deps, ctx, workspace);
+      // Waits like other tools, but on timeout reports `state: "indexing"` instead of failing: it is the diagnostic tool.
+      const idx = await deps.models.ready(root).catch((e: unknown) => {
+        if (isTaskLogError(e) && e.code === 'indexing') return deps.models.peek(root);
+        throw e;
+      });
       return {
         root,
-        state: 'ready',
-        counts: { items: 0 },
-        problems: [],
+        state: idx.state,
+        counts: idx.counts(),
+        problems: idx.problems(),
         recent_events: deps.log.recentProblems(root),
       };
+    }),
+  );
+
+  const workspaceArg = z.string().optional().describe("Absolute workspace root; defaults to the shim's working directory workspace.");
+
+  server.registerTool(
+    'list_items',
+    {
+      description:
+        'List items (maps, specs, tickets) in the workspace, ordered by effort then ticket number. Filters AND together. Invalid and conflicted items are included with flags.',
+      inputSchema: {
+        effort: z.string().optional(),
+        kind: z.enum(KINDS).optional(),
+        status: z.enum(STATUSES).optional(),
+        type: z.enum(TYPES).optional(),
+        tags_all: z.array(z.string()).optional().describe('Items must carry every one of these tags.'),
+        tags_any: z.array(z.string()).optional().describe('Items must carry at least one of these tags.'),
+        tags_none: z.array(z.string()).optional().describe('Items must carry none of these tags.'),
+        limit: z.number().int().optional().describe('Page size; default 50, capped at 200.'),
+        cursor: z.string().optional().describe('Cursor from the previous page; fails stale_cursor if the model changed.'),
+        workspace: workspaceArg,
+      },
+    },
+    wrap(async ({ workspace, ...query }: { workspace?: string } & ListQuery) => {
+      const root = resolveWorkspace(deps, ctx, workspace);
+      const idx = await deps.models.ready(root);
+      return { ...idx.list(query) };
+    }),
+  );
+
+  server.registerTool(
+    'get_item',
+    {
+      description: 'Fetch one item by Item ID (effort/NN, effort/map, effort/spec): frontmatter, body, ACs, hash, mtime and path.',
+      inputSchema: { id: z.string().describe('Item ID such as "demo/03".'), workspace: workspaceArg },
+    },
+    wrap(async ({ id, workspace }: { id: string; workspace?: string }) => {
+      const root = resolveWorkspace(deps, ctx, workspace);
+      const idx = await deps.models.ready(root);
+      const { parse: _parse, ...view } = idx.get(id);
+      let mtime: string | null = null;
+      try {
+        mtime = fs.statSync(path.join(root, ...view.path.split('/'))).mtime.toISOString();
+      } catch {
+        /* file vanished since the last scan: the watcher or next rescan will catch up */
+      }
+      return { ...view, mtime };
     }),
   );
 
