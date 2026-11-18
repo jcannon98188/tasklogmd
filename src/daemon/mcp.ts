@@ -7,6 +7,7 @@ import type { WorkspaceRegistry } from '../workspaces.ts';
 import type { ModelManager } from './models.ts';
 import type { WriteService } from './writes.ts';
 import { registerEditTools } from './edit-tools.ts';
+import { registerWorkflowTools } from './workflow-tools.ts';
 import { KINDS, STATUSES, TYPES } from '../model/parse.ts';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -161,6 +162,7 @@ export function createMcpServer(deps: McpDeps, ctx: RequestContext): McpServer {
   );
 
   registerEditTools(server, deps, ctx, wrap);
+  registerWorkflowTools(server, deps, ctx, wrap);
 
   return server;
 }
