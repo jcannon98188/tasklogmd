@@ -259,7 +259,8 @@ Source: Windows packaging research (branch `research/windows-packaging`); the ch
 **Build rules that follow from upgrading on a running Windows daemon**
 - The published package is bundled into one ESM file per entry point, so a running daemon never lazy-loads a file an upgrade just replaced.
 - No native addons in the daemon (chokidar v6 is pure JS).
-- Upgrade path: `npm i -g tasklog`, then the protocol-mismatch restart from section 2; `tasklog stop` first is recommended and documented.
+- The shim spawns the daemon with a cwd outside the package directory (Spike 3: a daemon whose cwd is inside the package makes `npm i -g` fail with `EBUSY` on the directory rename).
+- Upgrade path (confirmed by Spike 3): `npm i -g tasklog`, then the protocol-mismatch restart from section 2; `tasklog stop` first is recommended and documented.
 
 ## 12. Testing
 
@@ -306,12 +307,21 @@ If 1, 2 or 5 fails, move to the next fallback in order: `cmd /c start`, then a o
 
 **Spike 3: upgrade with a running daemon.** Run `npm i -g` over a version while a daemon is up. Does the replace succeed, does the old daemon keep serving, and does the newer shim restart it? Settles V2.
 
+**Spike 3 result (run 2026-11-17, Windows 11, Node 24.21, npm 11.19, `spikes/03-upgrade/`, stub package `tasklogspike3`): PASS, with one hard constraint.**
+- Replace succeeds when the daemon's working directory is outside the package: `npm i -g` over a running old daemon exits 0 (about 0.6 s) and swaps the files. A running Node process does not lock the ESM files it already loaded.
+- **Failure mode (reproduced):** if the daemon's cwd is inside the installed package directory, the install fails with `EBUSY: resource busy or locked, rename ...\node_modules\<pkg>` (errno -4082, syscall `rename`); the old version stays installed and the old daemon is unaffected. The directory held open by the daemon's cwd is the lock, not a file. Rule: the shim spawns the daemon with a cwd outside the package (inherit the user's cwd, or `%LOCALAPPDATA%\tasklog`), never the package dir.
+- The old daemon keeps serving after a successful install (`/health`, `/echo` returned 200 from the old pid).
+- Lazy loading breaks: an old daemon that `import()`s a sibling file after the upgrade removed it fails with `ERR_MODULE_NOT_FOUND`. Confirms the bundling rule (one ESM file per entry point, no lazy chunks).
+- A newer shim (protocol 2) facing the old daemon (protocol 1) sent `POST /shutdown`, the old pid exited, a new daemon spawned from the new files and served requests (old pid dead, new pid differs).
+- An older shim (protocol 1) facing the newer daemon (protocol 2) exited non-zero with `daemon_newer_than_shim` and left the daemon running with the same pid.
+- Not verified: npm's behaviour with a real bundle, antivirus or indexer locks on real machines, an upgrade while a request is in flight, and a daemon whose process holds other handles into the package dir.
+
 **Open verification items** (research could not settle these from official sources)
 
 | # | Question | Settled by |
 |---|---|---|
 | V1 | Do `.cmd` shims (npm global bins) launch correctly as an MCP server on Windows without a `cmd /c` wrapper? | Spike 2: yes, no wrapper needed |
-| V2 | Can a running exe or its package files be replaced on upgrade? | Spike 3 |
+| V2 | Can a running exe or its package files be replaced on upgrade? | Spike 3: yes, provided the daemon's cwd is outside the package; see Spike 3 result |
 | V3 | Does SmartScreen apply to files installed by npm? | observed during Slice 13 release testing |
 
 ## 14. Build slices
