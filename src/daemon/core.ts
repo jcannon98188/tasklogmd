@@ -9,6 +9,7 @@ import { PROTOCOL, VERSION } from '../version.ts';
 import { WorkspaceRegistry } from '../workspaces.ts';
 import { createMcpServer, type RequestContext } from './mcp.ts';
 import { ModelManager } from './models.ts';
+import type { WatcherOptions } from './watcher.ts';
 import { WriteService } from './writes.ts';
 
 export const IDLE_MS = 30 * 60 * 1000;
@@ -43,6 +44,8 @@ export interface DaemonOptions {
   indexWaitMs?: number;
   /** Test seam: awaited at the start of each workspace scan, to hold indexing open. */
   beforeScan?: (root: string) => Promise<void>;
+  /** Watcher wiring; tests inject a synthetic event source and fake timers. */
+  watcher?: WatcherOptions;
 }
 
 export interface RunningDaemon {
@@ -127,9 +130,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<RunningDaemon> {
   let server: http.Server | undefined;
   try {
     const registry = new WorkspaceRegistry(paths, log);
-    const models = new ModelManager(registry, log, { indexWaitMs: opts.indexWaitMs, beforeScan: opts.beforeScan });
+    const models = new ModelManager(registry, log, { indexWaitMs: opts.indexWaitMs, beforeScan: opts.beforeScan, watcher: opts.watcher });
     registry.load();
     const writes = new WriteService(models, log);
+    models.writeGuard = writes; // the watcher consults it to label and sequence around the daemon's own writes
     models.startAll();
 
     const token = randomBytes(32).toString('hex'); // 256 random bits, regenerated each start
