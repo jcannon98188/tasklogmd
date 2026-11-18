@@ -110,6 +110,8 @@ export function createMcpServer(deps: McpDeps, ctx: RequestContext): McpServer {
         tags_all: z.array(z.string()).optional().describe('Items must carry every one of these tags.'),
         tags_any: z.array(z.string()).optional().describe('Items must carry at least one of these tags.'),
         tags_none: z.array(z.string()).optional().describe('Items must carry none of these tags.'),
+        text: z.string().optional().describe('Search title, Item ID, tags and all body sections: words AND together (whole word or prefix, case- and diacritic-insensitive), "exact phrase", -excluded. Results rank title first.'),
+        snippet: z.boolean().optional().describe('With text: include a ~160-character excerpt per result.'),
         limit: z.number().int().optional().describe('Page size; default 50, capped at 200.'),
         cursor: z.string().optional().describe('Cursor from the previous page; fails stale_cursor if the model changed.'),
         workspace: workspaceArg,
