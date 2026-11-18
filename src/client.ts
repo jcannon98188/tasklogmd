@@ -2,10 +2,10 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sleep } from './fsutil.ts';
+import { pidAlive, sleep } from './fsutil.ts';
 import type { Logger } from './log.ts';
 import type { DataPaths } from './paths.ts';
-import { readDaemonState, type DaemonState } from './state.ts';
+import { lockHolder, readDaemonState, type DaemonState } from './state.ts';
 import { PROTOCOL } from './version.ts';
 
 export interface HealthBody {
@@ -14,6 +14,8 @@ export interface HealthBody {
   protocol: number;
   pid: number;
   uptime: number;
+  /** True once the daemon is shutting down: it still answers /health but refuses work. */
+  draining?: boolean;
   workspaces: Array<{ root: string; state: 'indexing' | 'ready' }>;
 }
 
@@ -64,6 +66,17 @@ export async function probeDaemon(paths: DataPaths): Promise<Probe | null> {
     /* unreachable: stale */
   }
   return null;
+}
+
+/**
+ * True once the daemon `pid` has fully exited: its process is gone, or it removed its state file and released
+ * the single-instance lock (so a new daemon can take the lock).
+ */
+async function daemonExited(paths: DataPaths, pid: number): Promise<boolean> {
+  if (!pidAlive(pid)) return true;
+  const s = readDaemonState(paths);
+  const stateGone = !s || s.pid !== pid;
+  return stateGone && lockHolder(paths) !== pid;
 }
 
 /**
@@ -129,9 +142,23 @@ export async function ensureDaemon(opts: EnsureOptions): Promise<Ensured> {
   const protocol = opts.protocol ?? PROTOCOL;
   const timeout = opts.timeoutMs ?? 10_000;
   const doSpawn = opts.spawn ?? (() => spawnDaemonProcess(paths));
+  const probeLive = async (): Promise<Probe | null> => {
+    const p = await probeDaemon(paths);
+    return p && !p.health.draining ? p : null;
+  };
 
   let probe = await probeDaemon(paths);
   let action: Ensured['action'] = 'reused';
+
+  if (probe?.health.draining) {
+    // Still answers /health while it drains, but refuses work and holds the lock: wait for it to exit, then respawn.
+    log.info('shim.spawn', { reason: 'daemon draining', pid: probe.state.pid });
+    const old = probe.state.pid;
+    if (!(await waitFor(async () => ((await daemonExited(paths, old)) ? true : null), timeout))) {
+      throw new EnsureDaemonError('respawn_failed', 'The daemon that was shutting down did not exit; run "tasklog stop".');
+    }
+    probe = null;
+  }
 
   if (!probe) {
     log.info('shim.spawn', { reason: 'no live daemon' });
@@ -141,7 +168,7 @@ export async function ensureDaemon(opts: EnsureOptions): Promise<Ensured> {
       log.error('shim.spawn_failed', { error: (e as Error).message });
       throw new EnsureDaemonError('spawn_failed', `Could not start the TaskLog daemon: ${(e as Error).message}`);
     }
-    probe = await waitFor(() => probeDaemon(paths), timeout);
+    probe = await waitFor(probeLive, timeout);
     if (!probe) {
       log.error('shim.spawn_failed', { error: 'daemon did not become healthy' });
       throw new EnsureDaemonError('spawn_failed', 'The TaskLog daemon did not become healthy in time; run "tasklog serve" to see why.');
@@ -164,7 +191,8 @@ export async function ensureDaemon(opts: EnsureOptions): Promise<Ensured> {
     } catch {
       /* it may already be going */
     }
-    const gone = await waitFor(async () => ((await probeDaemon(paths)) ? null : true), timeout);
+    const old = probe.state.pid;
+    const gone = await waitFor(async () => ((await daemonExited(paths, old)) ? true : null), timeout);
     if (!gone) throw new EnsureDaemonError('respawn_failed', 'The older daemon did not exit; run "tasklog stop".');
     try {
       doSpawn();
@@ -172,7 +200,7 @@ export async function ensureDaemon(opts: EnsureOptions): Promise<Ensured> {
       throw new EnsureDaemonError('respawn_failed', `Could not restart the TaskLog daemon: ${(e as Error).message}`);
     }
     const next = await waitFor(async () => {
-      const p = await probeDaemon(paths);
+      const p = await probeLive();
       return p && p.health.protocol === protocol ? p : null;
     }, timeout);
     if (!next) throw new EnsureDaemonError('respawn_failed', 'The restarted daemon did not become healthy in time.');

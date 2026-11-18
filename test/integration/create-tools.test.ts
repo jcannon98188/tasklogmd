@@ -158,3 +158,46 @@ describe('create_item', () => {
     expect(walk(path.join(root, '.tasklog')).filter((f) => f.endsWith('.tasklog-tmp'))).toEqual([]);
   });
 });
+
+describe('create_effort failure cleanup', () => {
+  it('removes only what this call created, leaving files made by someone else in the effort directory', async () => {
+    const { vi } = await import('vitest');
+    const root = mkWorkspace(env.root);
+    const d = await env.start();
+    const real = fs.promises.link;
+    const spy = vi.spyOn(fs.promises, 'link').mockImplementation((async (from: any, to: any) => {
+      if (String(to).endsWith('spec.md')) {
+        fs.writeFileSync(path.join(path.dirname(String(to)), 'notes.txt'), 'mine'); // external file appears mid-create
+        throw Object.assign(new Error('boom'), { code: 'EIO' });
+      }
+      return real(from, to);
+    }) as any);
+    try {
+      const r = await tool(d, root, 'create_effort', { effort: 'fresh', title: 'Fresh' });
+      expect(r.isError).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+    const dir = path.join(root, '.tasklog', 'fresh');
+    expect(fs.readFileSync(path.join(dir, 'notes.txt'), 'utf8')).toBe('mine');
+    expect(fs.existsSync(path.join(dir, 'map.md'))).toBe(false);
+    expect(fs.existsSync(path.join(dir, 'spec.md'))).toBe(false);
+  });
+
+  it('removes the directories it made when nothing else is in them', async () => {
+    const { vi } = await import('vitest');
+    const root = mkWorkspace(env.root);
+    const d = await env.start();
+    const real = fs.promises.link;
+    const spy = vi.spyOn(fs.promises, 'link').mockImplementation((async (from: any, to: any) => {
+      if (String(to).endsWith('spec.md')) throw Object.assign(new Error('boom'), { code: 'EIO' });
+      return real(from, to);
+    }) as any);
+    try {
+      expect((await tool(d, root, 'create_effort', { effort: 'fresh', title: 'Fresh' })).isError).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(fs.existsSync(path.join(root, '.tasklog', 'fresh'))).toBe(false);
+  });
+});

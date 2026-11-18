@@ -191,8 +191,19 @@ export class WriteService {
           paths: { map: out.map!.rel, spec: out.spec!.rel },
         };
       } catch (e) {
-        for (const rel of written) idx.removeFile(rel);
-        fs.rmSync(dir, { recursive: true, force: true });
+        // Undo only what this call created: its files, then its (now empty) directories. Anything someone else
+        // put in the effort directory meanwhile stays, and so do the directories that hold it.
+        for (const rel of written) {
+          idx.removeFile(rel);
+          fs.rmSync(path.join(root, ...rel.split('/')), { force: true });
+        }
+        for (const d of [path.join(dir, 'tickets'), dir]) {
+          try {
+            fs.rmdirSync(d);
+          } catch {
+            /* not empty or already gone */
+          }
+        }
         throw e;
       }
     });

@@ -137,7 +137,7 @@ function* lines(text: string, from = 0): Generator<Line> {
   }
 }
 
-function scalar(raw: string): FmValue {
+export function scalar(raw: string): FmValue {
   const s = raw.trim();
   if (s === '' || s === '~' || s === 'null') return null;
   if (s === 'true') return true;
@@ -155,7 +155,7 @@ function scalar(raw: string): FmValue {
 }
 
 /** Strips a trailing ` # comment` that is outside quotes. */
-function stripComment(v: string): string {
+export function stripComment(v: string): string {
   let quote: string | null = null;
   for (let i = 0; i < v.length; i++) {
     const c = v[i]!;
@@ -170,7 +170,8 @@ function stripComment(v: string): string {
   return v;
 }
 
-function splitInline(inner: string): string[] {
+/** Splits the inside of an inline `[a, b]` list on commas outside quotes. */
+export function splitInline(inner: string): string[] {
   const parts: string[] = [];
   let cur = '';
   let quote: string | null = null;
@@ -310,7 +311,7 @@ function parseSections(body: string, bodyStart: number): Section[] {
       continue;
     }
     if (fence !== null) continue;
-    const h = /^##[ \t]+(.*?)[ \t]*#*[ \t]*$/.exec(ln.text);
+    const h = /^##[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/.exec(ln.text);
     if (h && !ln.text.startsWith('###')) {
       const prev = out[out.length - 1];
       if (prev) prev.end = bodyStart + ln.start;

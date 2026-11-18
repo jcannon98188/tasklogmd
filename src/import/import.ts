@@ -5,6 +5,7 @@
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pad } from '../model/index.ts';
 import { parseItem } from '../model/parse.ts';
 import { isBacklogDir, loadBacklog } from './backlog.ts';
 import { loadScratch } from './scratch.ts';
@@ -75,7 +76,6 @@ export function detectSources(p: string): { root: string; sources: Source[] } {
   return { root, sources };
 }
 
-const pad = (n: number): string => String(n).padStart(2, '0');
 
 interface Existing {
   importedFrom: Map<string, { effort: string; num: number | null }>;

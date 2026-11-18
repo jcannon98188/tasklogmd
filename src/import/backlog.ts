@@ -9,7 +9,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Status } from '../model/parse.ts';
 import type { Candidate, LoadResult, Warning } from './types.ts';
-import { asList, normalizeText, slugify, splitFrontmatter, type YEntry, type YValue } from './yaml.ts';
+import { slugify } from '../model/create.ts';
+import { asList, normalizeText, splitFrontmatter, type YEntry, type YValue } from './yaml.ts';
 
 export interface BacklogOptions {
   root: string;

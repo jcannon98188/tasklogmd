@@ -5,7 +5,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { TYPES, type ItemType, type Status } from '../model/parse.ts';
 import type { Candidate, LoadResult, Warning } from './types.ts';
-import { normalizeText, slugify } from './yaml.ts';
+import { slugify } from '../model/create.ts';
+import { normalizeText } from './yaml.ts';
 
 export const TRIAGE_ROLES = ['needs-triage', 'needs-info', 'ready-for-agent', 'ready-for-human'] as const;
 
