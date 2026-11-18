@@ -17,9 +17,13 @@
 
 ## Comments
 
-Implemented on branch .
+Implemented on branch `t3/ticket-11-error-table-observability`.
 
-- Audit: every  in  uses a table code; the table itself () was already complete and is unchanged. Gaps fixed: (1) MCP and HTTP failures now share one log entry via  /  ( with code, message, retryable, via, request_id, workspace, level from the class); an unexpected exception is one  entry that also holds the cause and stack, replacing the separate . (2) The SDK's plain-text invalid-argument errors are rerouted to  (wrapper around the  handler in ; relies on the SDK's private , guarded). (3)  (set by ) tags request errors with their workspace so they reach .
-- : the ring is now 50 per workspace (was 50 global, filtered after).  entries gain  and (for conflicts) ;  remains for conflicts.
-- Rotation byte accounting uses UTF-8 byte length.  output and  now also give  /  paths ().
-- Tests: , plus a doctor fallback test in .
+- Audit: every `new TaskLogError(...)` in `src` uses a table code; the table (`src/errors.ts`) was already complete and is unchanged. Gaps fixed:
+  1. MCP and HTTP failures now share one log entry via `toTaskLogError` / `logTaskLogError` (`request.error` with code, message, retryable, via, request_id, workspace; level from the class). An unexpected exception is one `error` entry that also holds the cause and stack, replacing the separate `request.internal_error`.
+  2. The SDK's plain-text invalid-argument errors are rerouted to `bad_request` (wrapper around the `tools/call` handler in `mcp.ts`; relies on the SDK's private `_requestHandlers`, guarded).
+  3. `ctx.resolved` (set by `resolveWorkspace`) tags request errors with their workspace so they reach `recent_events[]`.
+- `recent_events[]`: the ring is now 50 per workspace (was 50 global, filtered after). `problems[]` entries gain `path` and, for conflicts, `error`; `paths` remains.
+- Rotation byte accounting uses UTF-8 byte length. `doctor` output and `--json` also give the `daemon.log` / `shim.log` paths (`log_files`).
+- Tests: `test/integration/observability.test.ts`, plus a doctor fallback test in `cli.test.ts`.
+
