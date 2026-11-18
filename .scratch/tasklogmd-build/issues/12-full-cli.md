@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 Walking skeleton
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Given no daemon, when `add`, `remove` or `list` runs, then a daemon is started and the registry is updated through it, so the daemon stays the only writer of `workspaces.json`.
 - [x] Given a directory, when `init` runs with no daemon, then `.tasklog/` exists and the first shim connection registers it; with a daemon running, `init` registers through it.
