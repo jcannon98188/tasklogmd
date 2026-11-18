@@ -36,6 +36,8 @@ export interface DoctorOptions {
   workspace?: string;
   env?: NodeJS.ProcessEnv;
   spawn?: () => void;
+  /** Node version to check; defaults to process.versions.node (injected by tests). */
+  nodeVersion?: string;
 }
 
 function writable(dir: string): string | null {
@@ -85,8 +87,9 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorReport> {
   const checks: DoctorCheck[] = [];
   const report: DoctorReport = { checks, problems: [], recent_events: [], recent_log: [], daemonNewer: false };
 
-  const major = Number(process.versions.node.split('.')[0]);
-  checks.push({ name: 'node-version', ok: major >= 24, detail: `Node ${process.versions.node}`, fix: 'Install Node 24 or newer.' });
+  const nodeVersion = opts.nodeVersion ?? process.versions.node;
+  const major = Number(nodeVersion.split('.')[0]);
+  checks.push({ name: 'node-version', ok: major >= 24, detail: `Node ${nodeVersion}`, fix: 'Install Node 24 or newer.' });
 
   for (const [name, dir] of [['data-dir-writable', paths.dir], ['log-dir-writable', paths.logsDir]] as const) {
     const err = writable(dir);
