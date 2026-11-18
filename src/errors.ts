@@ -1,6 +1,8 @@
 // The error table (spec section 7). One entry per code; the same entry feeds MCP tool errors,
 // HTTP management errors, CLI output and the log. Later tickets add behaviour, not codes.
 
+import type { Logger } from './log.ts';
+
 export type ErrorCode =
   | 'stale_hash'
   | 'stale_cursor'
@@ -91,4 +93,33 @@ export function errorEnvelope(e: TaskLogError): { error: ErrorBody } {
 
 export function isTaskLogError(e: unknown): e is TaskLogError {
   return e instanceof TaskLogError;
+}
+
+/**
+ * Normalises anything thrown into a table error. An unexpected exception becomes `internal` carrying
+ * the request_id; the original is returned as `cause` so the log (never the client) gets the stack.
+ */
+export function toTaskLogError(e: unknown, requestId: string): { error: TaskLogError; cause?: unknown } {
+  if (isTaskLogError(e)) return { error: e };
+  return { error: new TaskLogError('internal', { details: { request_id: requestId } }), cause: e };
+}
+
+/** The one log entry for a failure: same code, message and retryable as the MCP/HTTP error; level from the class. */
+export function logTaskLogError(
+  log: Pick<Logger, LogLevel>,
+  te: TaskLogError,
+  ctx: { requestId: string; workspace?: string; via: 'mcp' | 'http'; path?: string; cause?: unknown },
+): void {
+  const cause = ctx.cause as Error | undefined;
+  log[te.level]('request.error', {
+    request_id: ctx.requestId,
+    ...(ctx.workspace ? { workspace: ctx.workspace } : {}),
+    code: te.code,
+    message: te.message,
+    retryable: te.retryable,
+    via: ctx.via,
+    ...(ctx.path ? { path: ctx.path } : {}),
+    ...(Object.keys(te.details).length ? { details: te.details } : {}),
+    ...(cause !== undefined ? { error: cause?.message ?? String(cause), stack: cause?.stack } : {}),
+  });
 }

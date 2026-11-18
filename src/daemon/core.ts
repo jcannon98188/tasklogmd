@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { errorEnvelope, isTaskLogError, TaskLogError } from '../errors.ts';
+import { errorEnvelope, logTaskLogError, TaskLogError, toTaskLogError } from '../errors.ts';
 import type { Logger } from '../log.ts';
 import type { DataPaths } from '../paths.ts';
 import { acquireLock, removeDaemonState, writeDaemonState, type Lock } from '../state.ts';
@@ -250,14 +250,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<RunningDaemon> {
       lastActivity = clock.now();
       res.on('close', noteDone);
       route(req, res, requestId).catch((e: unknown) => {
-        let te: TaskLogError;
-        if (isTaskLogError(e)) {
-          te = e;
-        } else {
-          te = new TaskLogError('internal', { details: { request_id: requestId } });
-          log.error('request.internal_error', { request_id: requestId, error: (e as Error)?.message, stack: (e as Error)?.stack });
-        }
-        log[te.level]('request.error', { request_id: requestId, code: te.code, path: req.url });
+        const { error: te, cause } = toTaskLogError(e, requestId);
+        logTaskLogError(log, te, { requestId, via: 'http', path: req.url, cause });
         if (!res.headersSent) sendJson(res, te.http, errorEnvelope(te));
         else res.end();
       });

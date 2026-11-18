@@ -34,8 +34,9 @@ describe('logger ring buffer', () => {
     log.error('y', { workspace: 'b' });
     log.info('ignored', { workspace: 'a' });
     const a = log.recentProblems('a');
-    expect(a).toHaveLength(49);
+    expect(a).toHaveLength(50);
     expect(a.at(-1)?.i).toBe(59);
+    expect(log.recentProblems('b')).toHaveLength(1);
     expect(log.recentProblems()).toHaveLength(50);
   });
 });

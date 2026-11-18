@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { isTaskLogError, TaskLogError } from '../errors.ts';
+import { isTaskLogError, logTaskLogError, TaskLogError, toTaskLogError } from '../errors.ts';
 import type { ListQuery } from '../model/index.ts';
 import type { Logger } from '../log.ts';
 import type { WorkspaceRegistry } from '../workspaces.ts';
@@ -20,6 +21,8 @@ export interface RequestContext {
   /** `X-TaskLog-Cwd`: the shim's working directory, used as the default root of `init_workspace`. */
   cwd?: string;
   requestId: string;
+  /** Set by `resolveWorkspace`: the canonical root this request acted on, so its errors log under that workspace. */
+  resolved?: string;
 }
 
 export interface McpDeps {
@@ -37,7 +40,8 @@ export interface McpDeps {
 export function resolveWorkspace(deps: McpDeps, ctx: RequestContext, arg?: string): string {
   const root = arg ?? ctx.workspace;
   if (!root) throw new TaskLogError('no_workspace', { details: { hint: 'init' } });
-  return deps.registry.register(root);
+  ctx.resolved = deps.registry.register(root);
+  return ctx.resolved;
 }
 
 function ok(payload: Record<string, unknown>) {
@@ -45,15 +49,8 @@ function ok(payload: Record<string, unknown>) {
 }
 
 function toolError(e: unknown, ctx: RequestContext, log: Logger) {
-  let te: TaskLogError;
-  if (isTaskLogError(e)) {
-    te = e;
-  } else {
-    te = new TaskLogError('internal', { details: { request_id: ctx.requestId } });
-    log.error('request.internal_error', { request_id: ctx.requestId, error: (e as Error)?.message, stack: (e as Error)?.stack });
-  }
-  const level = te.level;
-  log[level]('request.error', { request_id: ctx.requestId, code: te.code, message: te.message });
+  const { error: te, cause } = toTaskLogError(e, ctx.requestId);
+  logTaskLogError(log, te, { requestId: ctx.requestId, workspace: ctx.resolved, via: 'mcp', cause });
   const body = te.toJSON();
   return {
     isError: true,
@@ -163,6 +160,22 @@ export function createMcpServer(deps: McpDeps, ctx: RequestContext): McpServer {
 
   registerEditTools(server, deps, ctx, wrap);
   registerWorkflowTools(server, deps, ctx, wrap);
+
+  // The SDK reports invalid arguments as a plain-text tool error. Route them through the error table
+  // as `bad_request` so every failure has the same shape and log entry.
+  const lowLevel = server.server as unknown as { _requestHandlers?: Map<string, (req: unknown, extra: unknown) => Promise<any>> };
+  const callTool = lowLevel._requestHandlers?.get('tools/call');
+  if (callTool) {
+    server.server.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
+      const r = await callTool(req, extra);
+      if (r?.isError && !r.structuredContent) {
+        const text = (r.content?.[0]?.text as string | undefined) ?? 'Invalid arguments';
+        const te = new TaskLogError('bad_request', { message: `${text.replace(/\s+/g, ' ').replace(/[.\s]*$/, '')}; fix the arguments and retry.` });
+        return toolError(te, ctx, deps.log);
+      }
+      return r;
+    });
+  }
 
   return server;
 }

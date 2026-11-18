@@ -179,6 +179,37 @@ describe('doctor', () => {
     expect(() => JSON.parse(r.stdout)).not.toThrow();
   });
 
+  it('falls back to the last 10 warn and error lines of daemon.log when the daemon is unreachable, and prints the log paths', async () => {
+    fs.mkdirSync(env.paths.logsDir, { recursive: true });
+    const entry = (i: number, level: string) => JSON.stringify({ ts: 't', level, event: 'x.y', i });
+    const rows: string[] = [];
+    for (let i = 0; i < 15; i++) rows.push(entry(i, i % 2 ? 'warn' : 'error'), entry(100 + i, 'info'));
+    fs.writeFileSync(env.paths.daemonLog, rows.join('\n') + '\n');
+    let stdout = '';
+    const run = (args: string[]) =>
+      runCommand(args, {
+        stdout: (s) => (stdout += s),
+        stderr: () => {},
+        cwd: env.root,
+        paths: env.paths,
+        env: { ...process.env, PATH: emptyPathDir },
+        spawn: () => {
+          throw new Error('cannot spawn');
+        },
+      });
+    expect(await run(['doctor', '--json'])).toBe(EXIT.failed);
+    const out = JSON.parse(stdout);
+    expect(out.recent_log).toHaveLength(10);
+    expect(out.recent_log.map((l: string) => JSON.parse(l).level).every((l: string) => l === 'warn' || l === 'error')).toBe(true);
+    expect(JSON.parse(out.recent_log.at(-1)).i).toBe(14);
+    expect(out.log_files).toEqual({ daemon: env.paths.daemonLog, shim: env.paths.shimLog });
+    stdout = '';
+    await run(['doctor']);
+    expect(stdout).toContain(env.paths.daemonLog);
+    expect(stdout).toContain(env.paths.shimLog);
+    expect(stdout.match(/^log: /gm)).toHaveLength(10);
+  });
+
   it('with a newer daemon exits 4', async () => {
     await env.start({ protocol: 2 });
     const r = await cli(['doctor', '--json']);

@@ -65,7 +65,7 @@ export function createLogger(opts: LoggerOptions = {}): Logger {
   const threshold = RANK[opts.level ?? 'info'];
   const now = opts.now ?? (() => new Date());
   const keep = opts.keep ?? 3;
-  const ring: LogEntry[] = [];
+  const rings = new Map<string, LogEntry[]>();
   let size = 0;
 
   const file = opts.file;
@@ -85,20 +85,25 @@ export function createLogger(opts: LoggerOptions = {}): Logger {
   function write(level: LogLevel, event: string, fields: Record<string, unknown> = {}): void {
     const entry: LogEntry = { ts: now().toISOString(), level, event, ...fields };
     if (level === 'warn' || level === 'error') {
-      ring.push(entry);
-      if (ring.length > RING_SIZE) ring.shift();
+      // Latest 50 per workspace, so a noisy workspace cannot push another's events out.
+      const key = typeof entry.workspace === 'string' ? entry.workspace : '';
+      const list = rings.get(key) ?? [];
+      rings.set(key, list);
+      list.push(entry);
+      if (list.length > RING_SIZE) list.shift();
     }
     if (RANK[level] > threshold) return;
     const line = JSON.stringify(entry) + '\n';
+    const bytes = Buffer.byteLength(line);
     if (opts.stderr) process.stderr.write(line);
     if (!file) return;
     try {
-      if (opts.maxBytes && opts.rotateOnWrite !== false && size + line.length > opts.maxBytes && size > 0) {
+      if (opts.maxBytes && opts.rotateOnWrite !== false && size + bytes > opts.maxBytes && size > 0) {
         rotate(file, keep);
         size = 0;
       }
       fs.appendFileSync(file, line);
-      size += line.length;
+      size += bytes;
     } catch {
       /* ignore */
     }
@@ -109,7 +114,10 @@ export function createLogger(opts: LoggerOptions = {}): Logger {
     warn: (e, f) => write('warn', e, f),
     info: (e, f) => write('info', e, f),
     debug: (e, f) => write('debug', e, f),
-    recentProblems: (workspace) => (workspace ? ring.filter((e) => e.workspace === workspace) : [...ring]),
+    recentProblems: (workspace) =>
+      workspace
+        ? [...(rings.get(workspace) ?? [])]
+        : [...rings.values()].flat().sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0)).slice(-RING_SIZE),
   };
 }
 
