@@ -1,0 +1,35 @@
+{
+  "name": "tasklog",
+  "version": "0.1.0",
+  "description": "TaskLog: per-user daemon and MCP interface for markdown task files",
+  "type": "module",
+  "bin": {
+    "tasklog": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && vitest run",
+    "test:unit": "vitest run test/unit",
+    "test:integration": "vitest run test/integration",
+    "test:e2e": "npm run build && vitest run test/e2e",
+    "test:soak": "vitest run test/soak --passWithNoTests"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.0"
+  }
+}
