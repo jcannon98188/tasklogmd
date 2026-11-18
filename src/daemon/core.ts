@@ -132,7 +132,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<RunningDaemon> {
     const registry = new WorkspaceRegistry(paths, log);
     const models = new ModelManager(registry, log, { indexWaitMs: opts.indexWaitMs, beforeScan: opts.beforeScan, watcher: opts.watcher });
     registry.load();
-    const writes = new WriteService(models, log);
+    const writes = new WriteService(models, log, { now: () => clock.now() });
     models.writeGuard = writes; // the watcher consults it to label and sequence around the daemon's own writes
     models.startAll();
 
