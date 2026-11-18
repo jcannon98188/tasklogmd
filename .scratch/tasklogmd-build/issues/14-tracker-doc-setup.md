@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 Spike: launch from Claude Code; 09 Workflow tools; 11 Error table and observability; 12 Full CLI; 13 Import
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 - [ ] Given a repo with `.tasklog/`, when `/setup-matt-pocock-skills` runs, then it offers TaskLog first, writes `docs/agents/issue-tracker.md` from the template, updates the `## Agent skills` block and writes `triage-labels.md` with the five roles as tags.
 - [ ] Given `tasklog` not yet registered, when setup runs, then it asks, then runs `claude mcp add --scope user` using the command line the launch spike fixed, and skips if `claude mcp list` already shows it.

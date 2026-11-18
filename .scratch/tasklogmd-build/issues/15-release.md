@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 Spike: upgrade with a running daemon; 14 Tracker doc and setup skill
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 - [x] Given the build, when inspected, then there is one ESM file per entry point and no native addon in the daemon.
 - [x] Given `engines` Node `>=24`, when installed on an older Node, then `tasklog doctor` reports the Node version check as failed with a fix.
