@@ -30,7 +30,10 @@ Settled while charting (grilled with the user):
 
 ## Decisions so far
 
-<!-- one line per resolved ticket: [title](issues/NN-slug.md): gist -->
+- [backlog.md schema](issues/01-backlog-md-schema.md): frontmatter plus sentinel-wrapped body sections; import must resolve prefix-varying dependency IDs, treat "done" as the last configured status, and map labels to tags.
+- [UTCP viability](issues/02-utcp-viability.md): no native Claude support and it adds nothing over MCP for a local daemon; MCP only in v1.
+- [MCP transport options](issues/03-mcp-transport-options.md): stdio shim that spawns or connects to the daemon, plus loopback HTTP for debugging; Windows process-tree kill needs a spike.
+- [Node file watching](issues/04-node-file-watching.md): chokidar v6 with events treated as hints, content-hash self-write suppression, and a rescan on startup and error.
 
 ## Not yet specified
 
