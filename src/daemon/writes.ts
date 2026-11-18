@@ -17,7 +17,8 @@ import { randomBytes } from 'node:crypto';
 import { TaskLogError } from '../errors.ts';
 import type { Logger } from '../log.ts';
 import { applyEdit, type Edit, type EditOp } from '../model/edit.ts';
-import { TASKLOG_DIR, type WorkspaceIndex } from '../model/index.ts';
+import { TASKLOG_DIR, identify, type WorkspaceIndex } from '../model/index.ts';
+import { checkEffortName, checkTitle, isoDate, renderMap, renderSpec, renderTicket, ticketFileName, ticketId } from '../model/create.ts';
 import { contentHash, parseItem } from '../model/parse.ts';
 import type { ModelManager } from './models.ts';
 
@@ -92,11 +93,14 @@ async function renameWithRetry(from: string, to: string): Promise<void> {
 export interface WriteServiceOptions {
   /** Test hook: awaited after the temp file is written and before the final hash check and rename. */
   beforeRename?: (w: PendingWrite) => Promise<void> | void;
+  /** Time source for `created`/`updated` on new files (ms epoch). */
+  now?: () => number;
 }
 
 export class WriteService {
   /** Test hook, settable at any time. See `WriteServiceOptions.beforeRename`. */
   beforeRename?: (w: PendingWrite) => Promise<void> | void;
+  private readonly now: () => number;
   private readonly queues = new Map<string, Promise<unknown>>();
   /** `root\0relPath -> hash` of the last bytes this service wrote. The watcher (ticket 07) drops events whose hash matches. */
   private readonly selfWrites = new Map<string, string>();
@@ -107,6 +111,7 @@ export class WriteService {
     opts: WriteServiceOptions = {},
   ) {
     this.beforeRename = opts.beforeRename;
+    this.now = opts.now ?? Date.now;
   }
 
   /** True when `hash` is what this service last wrote to `relPath` (workspace-relative, forward slashes). */
@@ -132,6 +137,131 @@ export class WriteService {
     const first = idx.get(id); // throws not_found, conflicted or invalid_item before we queue
     const abs = path.join(root, ...first.path.split('/'));
     return this.enqueue(abs, () => this.run(root, idx, id, hash, edit));
+  }
+
+  /**
+   * Creates `<effort>/map.md` and `<effort>/spec.md` for a new effort. Fails `bad_request` (changing nothing)
+   * when the effort already exists. Returns both IDs and hashes.
+   */
+  async createEffort(
+    root: string,
+    input: { effort: string; title: string; destination?: string },
+  ): Promise<{ effort: string; map_id: string; map_hash: string; spec_id: string; spec_hash: string; paths: { map: string; spec: string } }> {
+    const effort = checkEffortName(input.effort);
+    const title = checkTitle(input.title);
+    const date = isoDate(this.now());
+    const mapText = renderMap(title, input.destination, date);
+    const specText = renderSpec(title, date);
+    const idx = await this.models.ready(root);
+    return this.enqueue(`create\0${root}\0${effort}`, async () => {
+      const dir = path.join(root, TASKLOG_DIR, effort);
+      if (fs.existsSync(dir) || idx.entries().some((e) => e.effort === effort)) {
+        throw new TaskLogError('bad_request', {
+          message: `Effort "${effort}" already exists; pick another name, or add tickets to it with create_item.`,
+          details: { effort },
+        });
+      }
+      fs.mkdirSync(path.join(dir, 'tickets'), { recursive: true });
+      const written: string[] = [];
+      try {
+        const out: Record<string, { rel: string; hash: string }> = {};
+        for (const [name, text] of [['map', mapText], ['spec', specText]] as const) {
+          const rel = `${TASKLOG_DIR}/${effort}/${name}.md`;
+          const bytes = Buffer.from(text, 'utf8');
+          await this.createFile(path.join(root, ...rel.split('/')), bytes);
+          written.push(rel);
+          out[name] = { rel, hash: contentHash(bytes) };
+          idx.upsertFile(rel, bytes);
+          this.selfWrites.set(`${root}\0${rel}`, out[name]!.hash);
+        }
+        this.log.info('item.create', { workspace: root, id: `${effort}/map`, operation: 'create_effort' });
+        return {
+          effort,
+          map_id: `${effort}/map`,
+          map_hash: out.map!.hash,
+          spec_id: `${effort}/spec`,
+          spec_hash: out.spec!.hash,
+          paths: { map: out.map!.rel, spec: out.spec!.rel },
+        };
+      } catch (e) {
+        for (const rel of written) idx.removeFile(rel);
+        fs.rmSync(dir, { recursive: true, force: true });
+        throw e;
+      }
+    });
+  }
+
+  /**
+   * Creates the next ticket of an existing effort. The number is `max + 1` over every ticket file of the
+   * effort on disk and in the model (conflicted and invalid files included); nothing is stored. The file is
+   * named `NN-slug.md` from the title and never renamed later.
+   */
+  async createItem(
+    root: string,
+    input: { effort: string; title: string; question: string; type?: string | null; blocked_by?: Array<number | string>; tags?: string[] },
+  ): Promise<{ id: string; hash: string; path: string; number: number }> {
+    if (typeof input.effort !== 'string' || input.effort.trim() === '') {
+      throw new TaskLogError('bad_request', { message: 'effort is required for create_item; start a new effort with create_effort for a new body of work.' });
+    }
+    const effort = checkEffortName(input.effort);
+    const title = checkTitle(input.title);
+    const idx = await this.models.ready(root);
+    return this.enqueue(`create\0${root}\0${effort}`, async () => {
+      const dir = path.join(root, TASKLOG_DIR, effort);
+      if (!fs.existsSync(dir) && !idx.entries().some((e) => e.effort === effort)) {
+        throw new TaskLogError('not_found', { message: `Effort "${effort}" does not exist; create it first with create_effort.`, details: { effort } });
+      }
+      let max = 0;
+      for (const e of idx.entries()) if (e.effort === effort && e.number !== undefined) max = Math.max(max, e.number);
+      try {
+        for (const n of fs.readdirSync(path.join(dir, 'tickets'))) {
+          const ident = identify(`${effort}/tickets/${n}`);
+          if (ident?.number !== undefined) max = Math.max(max, ident.number);
+        }
+      } catch {
+        /* no tickets directory yet */
+      }
+      const number = max + 1;
+      const text = renderTicket({ effort, number, title, type: input.type, question: input.question, blocked_by: input.blocked_by, tags: input.tags }, isoDate(this.now()));
+      const rel = `${TASKLOG_DIR}/${effort}/tickets/${ticketFileName(number, title)}`;
+      const bytes = Buffer.from(text, 'utf8');
+      fs.mkdirSync(path.join(dir, 'tickets'), { recursive: true });
+      await this.createFile(path.join(root, ...rel.split('/')), bytes);
+      const hash = contentHash(bytes);
+      idx.upsertFile(rel, bytes);
+      this.selfWrites.set(`${root}\0${rel}`, hash);
+      const id = ticketId(effort, number);
+      this.log.info('item.create', { workspace: root, id, operation: 'create_item', hash });
+      return { id, hash, path: rel, number };
+    });
+  }
+
+  /** Writes a new file atomically and exclusively: temp file, then a hard link (fails if the target exists). */
+  private async createFile(abs: string, bytes: Buffer): Promise<void> {
+    const tmp = path.join(path.dirname(abs), `.${path.basename(abs)}.${randomBytes(4).toString('hex')}${TEMP_SUFFIX}`);
+    try {
+      const fh = await fs.promises.open(tmp, 'wx');
+      try {
+        await fh.writeFile(bytes);
+        await fh.sync();
+      } finally {
+        await fh.close();
+      }
+      try {
+        await fs.promises.link(tmp, abs);
+      } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code;
+        if (code === 'EEXIST') throw new TaskLogError('bad_request', { message: `${path.basename(abs)} already exists; retry.`, details: { path: abs } });
+        if (code === 'EPERM' || code === 'ENOSYS' || code === 'EXDEV' || code === 'ENOTSUP') {
+          if (fs.existsSync(abs)) throw new TaskLogError('bad_request', { message: `${path.basename(abs)} already exists; retry.` });
+          await renameWithRetry(tmp, abs);
+          return;
+        }
+        throw e;
+      }
+    } finally {
+      await fs.promises.rm(tmp, { force: true }).catch(() => undefined);
+    }
   }
 
   private enqueue<T>(key: string, job: () => Promise<T>): Promise<T> {
