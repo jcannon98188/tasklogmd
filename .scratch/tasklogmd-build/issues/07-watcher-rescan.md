@@ -4,7 +4,7 @@
 
 **Blocked by:** 06 Minimal-diff editor and write protocol
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Given a daemon write, when the watcher fires, then no reparse occurs (real chokidar test, waiting on the daemon's own log events, never fixed sleeps).
 - [x] Given an external edit, when the debounce elapses, then the model updates and the next write needs the new hash.
