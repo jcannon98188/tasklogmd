@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 Spike: detach and tree kill
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Given no daemon, when a shim connects from a directory under a `.tasklog/` root, then it spawns the daemon, registers the workspace, and `workspace_status` returns `ready`.
 - [x] Given a request without the bearer token, or with an `Origin` header, or with a wrong `Host`, when sent to any endpoint, then it is rejected `unauthorized`.
