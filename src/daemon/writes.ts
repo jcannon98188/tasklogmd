@@ -119,6 +119,12 @@ export class WriteService {
     return this.selfWrites.get(`${root}\0${relPath}`) === hash;
   }
 
+  /** Resolves when no write to this file (workspace-relative path) is queued or running. */
+  async settled(root: string, relPath: string): Promise<void> {
+    const key = path.join(root, ...relPath.split('/'));
+    while (this.queues.has(key)) await Promise.allSettled([this.queues.get(key)!]);
+  }
+
   /** Resolves when every queued write has finished. */
   async idle(): Promise<void> {
     while (this.queues.size > 0) await Promise.allSettled([...this.queues.values()]);
