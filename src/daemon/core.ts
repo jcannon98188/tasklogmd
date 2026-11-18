@@ -129,7 +129,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<RunningDaemon> {
     const registry = new WorkspaceRegistry(paths, log);
     const models = new ModelManager(registry, log, { indexWaitMs: opts.indexWaitMs, beforeScan: opts.beforeScan });
     registry.load();
-    const writes = new WriteService(models, log);
+    const writes = new WriteService(models, log, { now: () => clock.now() });
     models.startAll();
 
     const token = randomBytes(32).toString('hex'); // 256 random bits, regenerated each start

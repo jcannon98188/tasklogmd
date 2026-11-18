@@ -102,7 +102,7 @@ function isPlainSafe(s: string): boolean {
 
 type Style = 'plain' | 'dq' | 'sq';
 
-function renderString(s: string, style: Style): string {
+export function renderString(s: string, style: Style): string {
   if (/[\r\n]/.test(s)) throw bad('Frontmatter values must be a single line.');
   if (style === 'sq') return `'${s.replace(/'/g, "''")}'`;
   if (style === 'dq' || !isPlainSafe(s)) return JSON.stringify(s);
@@ -207,7 +207,7 @@ export function normalizeTags(tags: string[]): string[] {
   return out;
 }
 
-function normalizeBlockedBy(list: Array<number | string>, ctx: EditContext): Array<number | string> {
+export function normalizeBlockedBy(list: Array<number | string>, ctx: EditContext): Array<number | string> {
   const out: Array<number | string> = [];
   const add = (v: number | string) => {
     if (!out.includes(v)) out.push(v);
@@ -286,7 +286,7 @@ function checkHeading(heading: string): string {
 }
 
 /** Rejects content that would start a new `##` section (outside code fences), which would restructure the file. */
-function checkNoHeading(content: string): void {
+export function checkNoHeading(content: string): void {
   let fence: string | null = null;
   for (const line of content.split(/\r?\n/)) {
     const fm = /^\s*(```+|~~~+)/.exec(line);

@@ -120,4 +120,44 @@ export function registerEditTools(server: McpServer, deps: McpDeps, ctx: Request
     },
     wrap((a: { id: string; hash: string; n: number; workspace?: string }) => write(a, { op: 'remove_ac', n: a.n })),
   );
+
+  server.registerTool(
+    'create_effort',
+    {
+      description:
+        'Start a new body of work: creates `<effort>/map.md` (fixed headings Destination, Notes, Decisions so far, Not yet specified, Out of scope) and `<effort>/spec.md`. `effort` is a lowercase kebab-case name; it fails bad_request if the effort already exists. Returns the map and spec IDs.',
+      inputSchema: {
+        effort: z.string().describe('Effort name, lowercase kebab-case, e.g. "billing-v2". Becomes the directory and the Item ID prefix.'),
+        title: z.string().describe('Title of the map and spec.'),
+        destination: z.string().optional().describe('Text for the map\'s Destination section.'),
+        workspace: workspaceArg,
+      },
+    },
+    wrap(async (a: { effort: string; title: string; destination?: string; workspace?: string }) => {
+      const root = resolveWorkspace(deps, ctx, a.workspace);
+      return { ...(await deps.writes.createEffort(root, { effort: a.effort, title: a.title, ...(a.destination !== undefined ? { destination: a.destination } : {}) })) };
+    }),
+  );
+
+  server.registerTool(
+    'create_item',
+    {
+      description:
+        'Create a new ticket in an existing effort. The number is max+1 over the effort\'s tickets; the file is named NN-slug.md from the title. `effort` is required (use create_effort first for a new body of work). The ticket starts `open` with a `## Question` section. Returns `id` and `hash`.',
+      inputSchema: {
+        // Optional in the schema only so that a missing effort fails with our `bad_request`, not a protocol error.
+        effort: z.string().optional().describe('Existing effort name. Required, with no default: a missing effort fails bad_request.'),
+        title: z.string(),
+        question: z.string().describe('Body of the ticket\'s `## Question` section (markdown, no "## " headings).'),
+        type: z.enum(TYPES).optional().describe('research | prototype | grilling | task; omit for an implementation ticket (no `type` key is written).'),
+        blocked_by: z.array(z.union([z.number().int(), z.string()])).optional().describe('Same-effort numbers or "effort/NN".'),
+        tags: z.array(z.string()).optional().describe('Normalised to lowercase [a-z0-9-].'),
+        workspace: workspaceArg,
+      },
+    },
+    wrap(async (a: { effort?: string; title: string; question: string; type?: (typeof TYPES)[number]; blocked_by?: Array<number | string>; tags?: string[]; workspace?: string }) => {
+      const root = resolveWorkspace(deps, ctx, a.workspace);
+      return { ...(await deps.writes.createItem(root, { effort: a.effort as string, title: a.title, question: a.question, type: a.type, blocked_by: a.blocked_by, tags: a.tags })) };
+    }),
+  );
 }
