@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 Walking skeleton
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Given the native fixture workspace, when scanned, then every item is in the index with the right ID, kind, status, type, tags, `blocked_by` and ACs.
 - [x] Given an invalid file, when scanned, then it appears flagged invalid in listings and `get_item` on it fails `invalid_item`.
