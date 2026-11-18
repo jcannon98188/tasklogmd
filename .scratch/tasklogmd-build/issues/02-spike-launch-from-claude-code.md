@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] A stub package with a `tasklog` bin is globally installed with `npm i -g` from a local path, producing the real `.cmd` shim.
 - [x] Given `claude mcp add --scope user tasklog -- tasklog shim`, when a headless Claude Code session starts, then the server connects and a trivial tool call succeeds.

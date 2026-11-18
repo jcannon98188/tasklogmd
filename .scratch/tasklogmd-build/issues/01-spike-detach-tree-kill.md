@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] A script launches a stub shim through `claude mcp add` and a headless Claude Code session; the stub shim spawns a stub daemon using `spawn` with `detached`, `stdio: 'ignore'`, `windowsHide`, then `unref`, and writes a state file.
 - [x] Given a normal Claude Code exit, when the session ends, then the stub daemon is still running.

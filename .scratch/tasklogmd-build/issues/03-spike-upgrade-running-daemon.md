@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Two versions of a stub package exist (old and new protocol integer), each with a stub daemon bundled as one ESM file and a stub shim implementing the protocol-mismatch restart from the spec.
 - [x] Given the old daemon running, when `npm i -g` installs the new version over it, then the install succeeds, or the exact failure and locked file are reported.
