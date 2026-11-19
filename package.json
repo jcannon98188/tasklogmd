@@ -1,6 +1,6 @@
 {
   "name": "tasklog",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "TaskLog: per-user daemon and MCP interface for markdown task files",
   "type": "module",
   "bin": {
