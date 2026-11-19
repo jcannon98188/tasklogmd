@@ -10,6 +10,7 @@ import type { WriteService } from './writes.ts';
 import { registerEditTools } from './edit-tools.ts';
 import { registerWorkflowTools } from './workflow-tools.ts';
 import { KINDS, STATUSES, TYPES } from '../model/parse.ts';
+import { sectionText } from '../model/workflow.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { VERSION } from '../version.ts';
@@ -128,16 +129,33 @@ export function createMcpServer(deps: McpDeps, ctx: RequestContext): McpServer {
   server.registerTool(
     'get_item',
     {
-      description: 'Fetch one item by Item ID (effort/NN, effort/map, effort/spec): frontmatter, body, ACs, hash, mtime and path.',
-      inputSchema: { id: z.string().describe('Item ID such as "demo/03".'), workspace: workspaceArg },
+      description:
+        'Fetch one item by Item ID (effort/NN, effort/map, effort/spec): frontmatter, body, ACs, hash, mtime and path. Bodies can be large: pass `meta_only: true` for just the hash and frontmatter (e.g. to refresh a hash), or `sections: ["Destination", ...]` for only those `##` sections.',
+      inputSchema: {
+        id: z.string().describe('Item ID such as "demo/03".'),
+        meta_only: z.boolean().optional().describe('Return the hash, frontmatter, flags, mtime and path, without body or ACs.'),
+        sections: z
+          .array(z.string())
+          .optional()
+          .describe('Return `sections` (heading to text, null when missing; headings matched case-insensitively) instead of `body` and ACs.'),
+        workspace: workspaceArg,
+      },
     },
-    wrap(async ({ id, workspace }: { id: string; workspace?: string }) => {
+    wrap(async ({ id, workspace, meta_only, sections }: { id: string; workspace?: string; meta_only?: boolean; sections?: string[] }) => {
       const root = resolveWorkspace(deps, ctx, workspace);
       const idx = await deps.models.ready(root);
-      const { parse: _parse, ...view } = idx.get(id);
+      const { parse, ...full } = idx.get(id);
+      let view: Record<string, unknown> = full;
+      if (meta_only) {
+        const { body: _b, acs: _a, ...rest } = full;
+        view = rest;
+      } else if (sections !== undefined) {
+        const { body: _b, acs: _a, ...rest } = full;
+        view = { ...rest, sections: Object.fromEntries(sections.map((h) => [h, sectionText(parse, h) ?? null])) };
+      }
       let mtime: string | null = null;
       try {
-        mtime = fs.statSync(path.join(root, ...view.path.split('/'))).mtime.toISOString();
+        mtime = fs.statSync(path.join(root, ...full.path.split('/'))).mtime.toISOString();
       } catch {
         /* file vanished since the last scan: the watcher or next rescan will catch up */
       }

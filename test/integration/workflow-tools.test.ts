@@ -258,7 +258,7 @@ describe('overview', () => {
     await t('close', { id: 'e/04', reason: 'nah', out_of_scope_gist: 'delta out' });
     await t('replace_section', { id: 'e/map', hash: (await t('get_item', { id: 'e/map' })).structuredContent.hash, heading: 'Not yet specified', content: 'Fog here.' });
 
-    const o = (await t('overview', { effort: 'e' })).structuredContent;
+    const o = (await t('overview', { effort: 'e', verbose: true })).structuredContent;
     expect(o.counts).toEqual({ open: 1, claimed: 0, resolved: 2, closed: 1 });
     expect(o.destination).toBe('Ship the thing. Then relax.');
     expect(o.done).toEqual([

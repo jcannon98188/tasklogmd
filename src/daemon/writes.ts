@@ -311,7 +311,7 @@ export class WriteService {
     if (diskHash !== hash) {
       idx.upsertFile(rel, before); // catch the model up to the external edit
       this.log.info('item.stale_hash', { workspace: root, id, operation: edit.op });
-      throw new TaskLogError('stale_hash', { details: { id } });
+      throw new TaskLogError('stale_hash', { details: { id, current_hash: diskHash } });
     }
     const parse = parseItem(before);
     if (!parse.ok) {
@@ -344,7 +344,7 @@ export class WriteService {
       const now = await fs.promises.readFile(abs);
       if (contentHash(now) !== diskHash) {
         idx.upsertFile(rel, now);
-        throw new TaskLogError('stale_hash', { details: { id } });
+        throw new TaskLogError('stale_hash', { details: { id, current_hash: contentHash(now) } });
       }
       await renameWithRetry(tmp, abs);
     } catch (e) {

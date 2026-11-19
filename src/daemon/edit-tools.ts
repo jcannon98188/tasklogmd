@@ -4,17 +4,18 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { TaskLogError } from '../errors.ts';
+import { isTaskLogError, TaskLogError } from '../errors.ts';
 import type { Edit } from '../model/edit.ts';
 import { TYPES } from '../model/parse.ts';
 import type { RequestContext, McpDeps } from './mcp.ts';
+import { commitArg, commitTasklog } from './commit.ts';
 import { resolveWorkspace } from './mcp.ts';
 
 type Wrap = <A>(fn: (args: A) => Record<string, unknown> | Promise<Record<string, unknown>>) => (args: A) => Promise<any>;
 
 const workspaceArg = z.string().optional().describe("Absolute workspace root; defaults to the shim's working directory workspace.");
 const idArg = z.string().describe('Item ID such as "demo/03".');
-const hashArg = z.string().describe('The item `hash` from the last get_item or write. A stale hash fails stale_hash: re-read and retry.');
+const hashArg = z.string().describe('The item `hash` from the last get_item or write. A stale hash fails stale_hash: retry with `details.current_hash` (or re-read).');
 
 export function registerEditTools(server: McpServer, deps: McpDeps, ctx: RequestContext, wrap: Wrap): void {
   const write = async (args: { id: string; hash: string; workspace?: string }, edit: Edit): Promise<Record<string, unknown>> => {
@@ -62,15 +63,26 @@ export function registerEditTools(server: McpServer, deps: McpDeps, ctx: Request
         description,
         inputSchema: {
           id: idArg,
-          hash: hashArg,
+          hash: name === 'append_to_section' ? hashArg.optional().describe('Optional: appending cannot clobber content, so without a hash the current one is used.') : hashArg,
           heading: z.string().describe('Section heading without "##", matched case-insensitively, e.g. "Answer" or "Comments".'),
           content: z.string().describe('Markdown for the section body. It must not contain a "## " heading line.'),
           workspace: workspaceArg,
         },
       },
-      wrap((a: { id: string; hash: string; heading: string; content: string; workspace?: string }) =>
-        write(a, { op: name, heading: a.heading, content: a.content }),
-      ),
+      wrap(async (a: { id: string; hash?: string; heading: string; content: string; workspace?: string }) => {
+        const edit: Edit = { op: name, heading: a.heading, content: a.content };
+        if (a.hash !== undefined) return write({ ...a, hash: a.hash }, edit);
+        for (let attempt = 0; ; attempt++) {
+          const root = resolveWorkspace(deps, ctx, a.workspace);
+          const current = (await deps.models.ready(root)).get(a.id).hash;
+          try {
+            return await write({ ...a, hash: current }, edit);
+          } catch (e) {
+            if (isTaskLogError(e) && e.code === 'stale_hash' && attempt < 5) continue; // someone wrote in between
+            throw e;
+          }
+        }
+      }),
     );
   sectionTool(
     'replace_section',
@@ -152,12 +164,15 @@ export function registerEditTools(server: McpServer, deps: McpDeps, ctx: Request
         type: z.enum(TYPES).optional().describe('research | prototype | grilling | task; omit for an implementation ticket (no `type` key is written).'),
         blocked_by: z.array(z.union([z.number().int(), z.string()])).optional().describe('Same-effort numbers or "effort/NN".'),
         tags: z.array(z.string()).optional().describe('Normalised to lowercase [a-z0-9-].'),
+        commit: commitArg,
         workspace: workspaceArg,
       },
     },
-    wrap(async (a: { effort?: string; title: string; question: string; type?: (typeof TYPES)[number]; blocked_by?: Array<number | string>; tags?: string[]; workspace?: string }) => {
+    wrap(async (a: { effort?: string; title: string; question: string; type?: (typeof TYPES)[number]; blocked_by?: Array<number | string>; tags?: string[]; commit?: boolean; workspace?: string }) => {
       const root = resolveWorkspace(deps, ctx, a.workspace);
-      return { ...(await deps.writes.createItem(root, { effort: a.effort as string, title: a.title, question: a.question, type: a.type, blocked_by: a.blocked_by, tags: a.tags })) };
+      const created = await deps.writes.createItem(root, { effort: a.effort as string, title: a.title, question: a.question, type: a.type, blocked_by: a.blocked_by, tags: a.tags });
+      if (!a.commit) return { ...created };
+      return { ...created, commit: await commitTasklog(root, `Create ${created.id}: ${a.title.replace(/s+/g, ' ').trim()}`) };
     }),
   );
 }

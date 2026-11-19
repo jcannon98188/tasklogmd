@@ -315,7 +315,9 @@ function checkHeading(heading: string): string {
 /** Rejects content that would start a new `##` section (outside code fences), which would restructure the file. */
 export function checkNoHeading(content: string): void {
   let fence: string | null = null;
-  for (const line of content.split(/\r?\n/)) {
+  const lines = content.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
     const fm = /^\s*(```+|~~~+)/.exec(line);
     if (fm) {
       const marker = fm[1]![0]!;
@@ -324,7 +326,10 @@ export function checkNoHeading(content: string): void {
       continue;
     }
     if (fence === null && /^##[ \t]/.test(line)) {
-      throw bad('Section content must not contain a "## " heading line; use replace_section for each section.');
+      const shown = JSON.stringify(line.length > 60 ? `${line.slice(0, 60)}...` : line);
+      throw bad(
+        `Section content must not contain a "## " heading line (line ${i + 1}: ${shown}); write each section separately with replace_section, or pass resolve an answer_sections map. Use ### for sub-headings.`,
+      );
     }
   }
 }

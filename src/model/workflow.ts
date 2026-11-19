@@ -155,7 +155,8 @@ export interface EffortOverview {
   title: string | null;
   destination: string | null;
   counts: Record<string, number>;
-  done: Array<{ id: string; title: string; gist: string | null }>;
+  /** `gist` is present only for a verbose overview. */
+  done: Array<{ id: string; title: string; gist?: string | null }>;
   in_progress: ClaimedRef[];
   ready: TicketRef[];
   blocked: BlockedRef[];
@@ -221,7 +222,7 @@ function mapOf(idx: WorkspaceIndex, effort: string): { parse?: ValidParse; warni
   return { parse: e.parse };
 }
 
-export function computeOverview(idx: WorkspaceIndex, effort: string, opts: { staleMs?: number; now: number }): EffortOverview {
+export function computeOverview(idx: WorkspaceIndex, effort: string, opts: { staleMs?: number; now: number; verbose?: boolean }): EffortOverview {
   const fr = computeFrontier(idx, effort, { staleMs: opts.staleMs, now: opts.now });
   const { parse: map, warning } = mapOf(idx, effort);
   const tickets = ticketEntries(idx, effort).filter((e) => e.parse.ok && idx.entriesForId(e.id).length === 1);
@@ -235,7 +236,7 @@ export function computeOverview(idx: WorkspaceIndex, effort: string, opts: { sta
     const f = (e.parse as ValidParse).fields;
     if (f.status === 'resolved') {
       const d = decisions.find((x) => x.ticket === e.id);
-      done.push({ id: e.id, title: f.title, gist: d ? d.gist : null });
+      done.push(opts.verbose ? { id: e.id, title: f.title, gist: d ? d.gist : null } : { id: e.id, title: f.title });
       if (!d && map) drift.push({ type: 'resolved_without_decision', id: e.id, message: `${e.id} is resolved but has no line in Decisions so far; add one with add_decision or retry resolve with a gist.` });
     } else if (f.status === 'closed') closed.push({ id: e.id, title: f.title });
   }
@@ -280,7 +281,7 @@ export function overviewMarkdown(o: EffortOverview): string {
   for (const w of o.warnings) L.push(`> Warning: ${w}`, '');
   L.push('## Destination', '', o.destination ?? '_none_', '', `**Counts:** ${countsLine(o.counts)}`, '');
   L.push('## Done', '');
-  L.push(...(o.done.length ? o.done.map((d) => `- ${d.id} ${d.title}${d.gist ? `: ${d.gist}` : ' (no Decisions line)'}`) : ['_none_']), '');
+  L.push(...(o.done.length ? o.done.map((d) => `- ${d.id} ${d.title}${d.gist === undefined ? '' : d.gist ? `: ${d.gist}` : ' (no Decisions line)'}`) : ['_none_']), '');
   L.push('## In progress', '');
   L.push(...(o.in_progress.length ? o.in_progress.map((c) => `- ${c.id} ${c.title} (claimed by ${c.claimed_by ?? 'unknown'}, ${c.age}${c.stale ? ', STALE' : ''})`) : ['_none_']), '');
   L.push('## Ready', '');

@@ -8,6 +8,7 @@ import type { Logger } from '../log.ts';
 import type { Edit } from '../model/edit.ts';
 import type { ItemView } from '../model/index.ts';
 import { sectionText } from '../model/workflow.ts';
+import { commitTasklog, type CommitResult } from './commit.ts';
 import type { ModelManager } from './models.ts';
 import type { WriteService } from './writes.ts';
 
@@ -125,14 +126,42 @@ export class WorkflowService {
    */
   private async finish(
     root: string,
+    a: { id: string; hash?: string; commit?: boolean },
+    kind: { status: 'resolved' | 'closed'; text: string | undefined; mapHeading: string; mapGist?: string; sections?: Record<string, string> },
+  ): Promise<{ id: string; hash: string; steps: StepReport; commit?: CommitResult }> {
+    const r = await this.finishWrites(root, a, kind);
+    if (!a.commit) return { id: r.id, hash: r.hash, steps: r.steps };
+    const verb = kind.status === 'resolved' ? 'Resolve' : 'Close';
+    return { id: r.id, hash: r.hash, steps: r.steps, commit: await commitTasklog(root, `${verb} ${a.id}: ${oneLine(r.title)}`) };
+  }
+
+  private async finishWrites(
+    root: string,
     a: { id: string; hash?: string },
-    kind: { status: 'resolved' | 'closed'; text: string; mapHeading: string; mapGist?: string },
-  ): Promise<{ id: string; hash: string; steps: StepReport }> {
-    const answer = nonEmpty(kind.text, kind.status === 'resolved' ? 'answer' : 'reason').replace(/\r\n?/g, '\n').trim();
+    kind: { status: 'resolved' | 'closed'; text: string | undefined; mapHeading: string; mapGist?: string; sections?: Record<string, string> },
+  ): Promise<{ id: string; hash: string; steps: StepReport; title: string }> {
+    const answer = nonEmpty(kind.text, kind.status === 'resolved' ? 'answer (or answer_sections.Answer)' : 'reason').replace(/\r\n?/g, '\n').trim();
     let target = '';
     let title = '';
     const steps: StepReport = { ticket: 'ok', map: 'skipped' };
-    const ticketRes = await this.mutate(root, a.id, a.hash, (view) => {
+    let hash = a.hash;
+    // Extra sections first (idempotent), after checking the ticket can still take this transition, so a rejected
+    // resolve leaves the file alone. The caller's hash, if any, guards the first edit only.
+    const extra = Object.entries(kind.sections ?? {});
+    if (extra.length > 0) {
+      const f = (await this.ticket(root, a.id)).parse.fields;
+      if (f.status !== kind.status && f.status !== 'open' && f.status !== 'claimed') {
+        throw new TaskLogError('bad_transition', { message: `${a.id} is ${f.status}; only open or claimed tickets can be ${kind.status}.`, details: { id: a.id, status: f.status } });
+      }
+      for (const [heading, raw] of extra) {
+        const content = nonEmpty(raw, `answer_sections.${heading}`).replace(/\r\n?/g, '\n').trim();
+        await this.mutate(root, a.id, hash, (view): Edit | null =>
+          (sectionText(view.parse, heading) ?? '').replace(/\r\n?/g, '\n') === content ? null : { op: 'replace_section', heading, content },
+        );
+        hash = undefined;
+      }
+    }
+    const ticketRes = await this.mutate(root, a.id, hash, (view) => {
       const f = view.parse.fields;
       if (f.kind !== 'ticket') throw bad(`${view.id} is not a ticket.`);
       steps.ticket = 'ok';
@@ -151,7 +180,7 @@ export class WorkflowService {
       return { op: 'set_state', answer, status: kind.status, claimed_by: null, updated: this.stamp() };
     });
 
-    if (kind.mapGist === undefined) return { id: a.id, hash: ticketRes.hash, steps };
+    if (kind.mapGist === undefined) return { id: a.id, hash: ticketRes.hash, steps, title };
     const gist = oneLine(kind.mapGist);
     if (gist === '') throw bad('The gist must not be empty.');
     const effort = a.id.split('/')[0]!;
@@ -171,14 +200,26 @@ export class WorkflowService {
         });
       }
     }
-    return { id: a.id, hash: ticketRes.hash, steps };
+    return { id: a.id, hash: ticketRes.hash, steps, title };
   }
 
-  resolve(root: string, a: { id: string; answer: string; gist?: string; hash?: string }) {
-    return this.finish(root, a, { status: 'resolved', text: a.answer, mapHeading: 'Decisions so far', mapGist: a.gist });
+  /**
+   * `answer` goes to `## Answer`; `answer_sections` ({heading: text}) writes further sections of the ticket in the same
+   * call, and its `Answer` key may stand in for `answer`. Long, multi-section answers belong there.
+   */
+  resolve(root: string, a: { id: string; answer?: string; answer_sections?: Record<string, string>; gist?: string; hash?: string; commit?: boolean }) {
+    let text = a.answer;
+    const sections: Record<string, string> = {};
+    for (const [heading, content] of Object.entries(a.answer_sections ?? {})) {
+      if (heading.replace(/^#+\s*/, '').trim().toLowerCase() === 'answer') {
+        if (text !== undefined) throw bad('Pass the answer either as answer or as answer_sections.Answer, not both.');
+        text = content;
+      } else sections[heading] = content;
+    }
+    return this.finish(root, a, { status: 'resolved', text, mapHeading: 'Decisions so far', mapGist: a.gist, sections });
   }
 
-  close(root: string, a: { id: string; reason: string; out_of_scope_gist?: string; hash?: string }) {
+  close(root: string, a: { id: string; reason: string; out_of_scope_gist?: string; hash?: string; commit?: boolean }) {
     return this.finish(root, a, { status: 'closed', text: a.reason, mapHeading: 'Out of scope', mapGist: a.out_of_scope_gist });
   }
 

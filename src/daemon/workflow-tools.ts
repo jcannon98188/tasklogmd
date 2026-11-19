@@ -8,6 +8,7 @@ import { TYPES } from '../model/parse.ts';
 import { computeEffortLines, computeFrontier, computeOverview, effortLinesMarkdown, overviewMarkdown, parseStaleAfter } from '../model/workflow.ts';
 import type { McpDeps, RequestContext } from './mcp.ts';
 import { resolveWorkspace } from './mcp.ts';
+import { commitArg } from './commit.ts';
 import { TRIAGE_CATEGORIES, TRIAGE_STATES, WorkflowService } from './workflow.ts';
 
 type Wrap = <A>(fn: (args: A) => Record<string, unknown> | Promise<Record<string, unknown>>) => (args: A) => Promise<any>;
@@ -44,12 +45,20 @@ export function registerWorkflowTools(server: McpServer, deps: McpDeps, ctx: Req
         type: z.enum(TYPES).optional(),
         tags: z.array(z.string()).optional().describe('Tickets must carry every one of these tags.'),
         stale_after: staleArg,
+        fields: z
+          .array(z.string())
+          .optional()
+          .describe('Keep only these keys of each ticket entry (`id` is always kept), e.g. ["title"]. Keys: title, type, tags, hash, blocked_by, claimed_by, age, age_seconds, stale, reasons. Omit for everything.'),
         workspace: workspaceArg,
       },
     },
-    wrap(async (a: { effort: string; type?: string; tags?: string[]; stale_after?: number | string; workspace?: string }) => {
+    wrap(async (a: { effort: string; type?: string; tags?: string[]; stale_after?: number | string; fields?: string[]; workspace?: string }) => {
       const idx = await deps.models.ready(root(a.workspace));
-      return { ...computeFrontier(idx, a.effort, { type: a.type, tags: a.tags, staleMs: parseStaleAfter(a.stale_after), now: deps.writes.now() }) };
+      const fr = computeFrontier(idx, a.effort, { type: a.type, tags: a.tags, staleMs: parseStaleAfter(a.stale_after), now: deps.writes.now() });
+      if (a.fields === undefined) return { ...fr };
+      const keep = new Set(['id', ...a.fields]);
+      const pick = (x: object): object => Object.fromEntries(Object.entries(x).filter(([k]) => keep.has(k)));
+      return { effort: fr.effort, ready: fr.ready.map(pick), claimed: fr.claimed.map(pick), blocked: fr.blocked.map(pick) };
     }),
   );
 
@@ -57,15 +66,16 @@ export function registerWorkflowTools(server: McpServer, deps: McpDeps, ctx: Req
     'overview',
     {
       description:
-        'Read-only summary of one effort: Destination, counts, Done (with Decisions-so-far gists), In progress (with age and stale flag), Ready, Blocked, Still to do, Ruled out, and drift (a resolved ticket with no Decisions line, or a Decisions line whose ticket is not resolved). With no `effort`, one line per effort. `format`: markdown, json or both (default).',
+        'Read-only summary of one effort: Destination, counts, Done (ids and titles; `verbose: true` adds the Decisions-so-far gists),In progress (with age and stale flag), Ready, Blocked, Still to do, Ruled out, and drift (a resolved ticket with no Decisions line, or a Decisions line whose ticket is not resolved). With no `effort`, one line per effort. `format`: markdown, json or both (default).',
       inputSchema: {
         effort: z.string().optional(),
         format: z.enum(['markdown', 'json', 'both']).optional(),
+        verbose: z.boolean().optional().describe("Include each Done ticket's Decisions-so-far gist. Off by default: the output otherwise grows with every resolution."),
         stale_after: staleArg,
         workspace: workspaceArg,
       },
     },
-    wrap(async (a: { effort?: string; format?: 'markdown' | 'json' | 'both'; stale_after?: number | string; workspace?: string }) => {
+    wrap(async (a: { effort?: string; format?: 'markdown' | 'json' | 'both'; verbose?: boolean; stale_after?: number | string; workspace?: string }) => {
       const idx = await deps.models.ready(root(a.workspace));
       const format = a.format ?? 'both';
       const shape = (data: Record<string, unknown>, markdown: string): Record<string, unknown> =>
@@ -74,7 +84,7 @@ export function registerWorkflowTools(server: McpServer, deps: McpDeps, ctx: Req
         const efforts = computeEffortLines(idx);
         return shape({ efforts }, effortLinesMarkdown(efforts));
       }
-      const o = computeOverview(idx, a.effort, { staleMs: parseStaleAfter(a.stale_after), now: deps.writes.now() });
+      const o = computeOverview(idx, a.effort, { staleMs: parseStaleAfter(a.stale_after), now: deps.writes.now(), verbose: a.verbose });
       return shape({ ...o }, overviewMarkdown(o));
     }),
   );
@@ -83,7 +93,7 @@ export function registerWorkflowTools(server: McpServer, deps: McpDeps, ctx: Req
     'claim',
     {
       description:
-        'Claim an open ticket for `claimant` (sets status claimed and claimed_by). Claiming again as the same claimant is a no-op; a different claimant gets already_claimed with `claimed_by`. Claim before doing any work on a ticket.',
+        'Tickets only. Claim an open ticket for `claimant` (sets status claimed and claimed_by). Claiming again as the same claimant is a no-op; a different claimant gets already_claimed with `claimed_by`. Claim before doing any work on a ticket.',
       inputSchema: { id: idArg, claimant: z.string().describe('Who is claiming, e.g. "agent-1".'), hash: optHash, workspace: workspaceArg },
     },
     wrap(async (a: { id: string; claimant: string; hash?: string; workspace?: string }) => ({ ...(await wf.claim(root(a.workspace), a)) })),
@@ -92,7 +102,7 @@ export function registerWorkflowTools(server: McpServer, deps: McpDeps, ctx: Req
   server.registerTool(
     'release',
     {
-      description: 'Return a claimed ticket to open. Releasing someone else\'s claim needs `force: true`. Fails not_claimed on an open ticket.',
+      description: 'Tickets only. Return a claimed ticket to open. Releasing someone else\'s claim needs `force: true`. Fails not_claimed on an open ticket.',
       inputSchema: { id: idArg, claimant: z.string().optional().describe('Who is releasing; must match claimed_by unless `force`.'), hash: optHash, force: z.boolean().optional(), workspace: workspaceArg },
     },
     wrap(async (a: { id: string; claimant?: string; hash?: string; force?: boolean; workspace?: string }) => ({ ...(await wf.release(root(a.workspace), a)) })),
@@ -102,20 +112,31 @@ export function registerWorkflowTools(server: McpServer, deps: McpDeps, ctx: Req
     'resolve',
     {
       description:
-        'Resolve a ticket: writes `answer` to `## Answer`, sets status resolved and clears claimed_by; with `gist`, then appends "- [title](tickets/NN-slug.md): gist" to the map\'s Decisions so far (once, even if retried). The ticket is written first, the map second; if the map step fails the result is the retryable `partial` error with per-step results, and repeating the same call finishes it.',
-      inputSchema: { id: idArg, answer: z.string(), gist: z.string().optional().describe('One-line decision for the map; omit to skip the map step.'), hash: optHash, workspace: workspaceArg },
+        'Tickets only (not maps or specs). Resolve a ticket: writes `answer` to `## Answer`, sets status resolved and clears claimed_by; with `gist`, then appends "- [title](tickets/NN-slug.md): gist" to the map\'s Decisions so far (once, even if retried). The ticket is written first, the map second; if the map step fails the result is the retryable `partial` error with per-step results, and repeating the same call finishes it.',
+      inputSchema: {
+        id: idArg,
+        answer: z.string().optional().describe('Body of `## Answer`; must not contain a "## " heading line (use answer_sections for a multi-section answer). Required unless answer_sections has an `Answer` key.'),
+        answer_sections: z
+          .record(z.string(), z.string())
+          .optional()
+          .describe('Multi-section answer as {heading: text}, e.g. {"Answer": "...", "Evidence": "..."}. The `Answer` key replaces `answer`; every other key is written as its own `## <heading>` section of the ticket. A hash, if given, guards only the first write.'),
+        gist: z.string().optional().describe('One-line decision for the map; omit to skip the map step.'),
+        commit: commitArg,
+        hash: optHash,
+        workspace: workspaceArg,
+      },
     },
-    wrap(async (a: { id: string; answer: string; gist?: string; hash?: string; workspace?: string }) => ({ ...(await wf.resolve(root(a.workspace), a)) })),
+    wrap(async (a: { id: string; answer?: string; answer_sections?: Record<string, string>; gist?: string; commit?: boolean; hash?: string; workspace?: string }) => ({ ...(await wf.resolve(root(a.workspace), a)) })),
   );
 
   server.registerTool(
     'close',
     {
       description:
-        'Rule a ticket out without resolving it: writes `reason` to `## Answer`, sets status closed and clears claimed_by; with `out_of_scope_gist`, appends a line to the map\'s Out of scope. Same step results and `partial` retry behaviour as resolve.',
-      inputSchema: { id: idArg, reason: z.string(), out_of_scope_gist: z.string().optional(), hash: optHash, workspace: workspaceArg },
+        'Tickets only. Rule a ticket out without resolving it: writes `reason` to `## Answer`, sets status closed and clears claimed_by; with `out_of_scope_gist`, appends a line to the map\'s Out of scope. Same step results and `partial` retry behaviour as resolve.',
+      inputSchema: { id: idArg, reason: z.string(), out_of_scope_gist: z.string().optional(), commit: commitArg, hash: optHash, workspace: workspaceArg },
     },
-    wrap(async (a: { id: string; reason: string; out_of_scope_gist?: string; hash?: string; workspace?: string }) => ({ ...(await wf.close(root(a.workspace), a)) })),
+    wrap(async (a: { id: string; reason: string; out_of_scope_gist?: string; commit?: boolean; hash?: string; workspace?: string }) => ({ ...(await wf.close(root(a.workspace), a)) })),
   );
 
   const mapLineTool = (name: 'add_decision' | 'add_out_of_scope', what: string, run: (r: string, a: { effort: string; title_link: string; gist: string }) => Promise<{ hash: string; changed: boolean }>) =>
@@ -138,7 +159,7 @@ export function registerWorkflowTools(server: McpServer, deps: McpDeps, ctx: Req
   server.registerTool(
     'triage',
     {
-      description: `Set a ticket's triage state tag (${TRIAGE_STATES.join(', ')}) and optionally its category tag (${TRIAGE_CATEGORIES.join(', ')}), replacing the old ones so exactly one of each remains. \`wontfix\` also closes the ticket with \`note\` as the Answer. For other states \`note\` is appended to \`## Comments\`.`,
+      description: `Tickets only (maps and specs fail bad_request). Set a ticket's triage state tag (${TRIAGE_STATES.join(', ')}) and optionally its category tag (${TRIAGE_CATEGORIES.join(', ')}), replacing the old ones so exactly one of each remains. \`wontfix\` also closes the ticket with \`note\` as the Answer. For other states \`note\` is appended to \`## Comments\`.`,
       inputSchema: { id: idArg, state: z.enum(TRIAGE_STATES), category: z.enum(TRIAGE_CATEGORIES).optional(), note: z.string().optional(), hash: optHash, workspace: workspaceArg },
     },
     wrap(async (a: { id: string; state: string; category?: string; note?: string; hash?: string; workspace?: string }) => ({ ...(await wf.triage(root(a.workspace), a)) })),

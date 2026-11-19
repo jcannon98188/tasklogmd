@@ -26,6 +26,14 @@ Issues and specs for this repo live in TaskLog, accessed through the `tasklog` M
 - Orient and pick: `overview(effort)`, then `frontier(effort)`; claim with `claim(id, claimant)` before any work.
 - Resolve: `resolve(id, answer, gist)`; new tickets via `create_item` and `set_fields`; graduate fog with `replace_section` on the map's Not yet specified; ruled-out tickets via `close(id, reason, out_of_scope_gist)`.
 
+### Gotchas
+
+- `claim`, `resolve`, `close` and `triage` apply to tickets only, not maps or specs.
+- `resolve` and `close` rewrite the map, so its hash changes. A `stale_hash` error carries `details.current_hash`; `append_to_section` needs no hash at all.
+- `resolve`'s `answer` cannot contain a `## ` line. For a multi-section answer pass `answer_sections: {Answer: "...", Evidence: "..."}`.
+- Keep reads small: `get_item(id, meta_only: true)` to refresh a hash, `get_item(id, sections: [...])` for part of a body, `frontier(effort, fields: ["title"])`. `overview` omits Decisions gists unless `verbose: true`.
+- `commit: true` on `resolve`, `close` and `create_item` stages `.tasklog/` and commits (never pushes).
+
 ## implement-spec
 
 Read the graph with `list_items(effort, kind=ticket)` and `get_item`. Implementers only `toggle_ac` on their own ticket. The orchestrator calls `resolve` on the integration worktree.
