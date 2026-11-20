@@ -16,9 +16,9 @@ import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { TaskLogError } from '../errors.ts';
 import type { Logger } from '../log.ts';
-import { applyEdit, type Edit, type EditOp } from '../model/edit.ts';
+import { applyEdit, normalizeCode, type Edit, type EditOp } from '../model/edit.ts';
 import { ARCHITECTURE_DIR, TASKLOG_DIR, identify, type WorkspaceIndex } from '../model/index.ts';
-import { checkEffortName, checkTitle, isoDate, renderMap, renderSpec, renderTicket, ticketFileName, ticketId } from '../model/create.ts';
+import { checkEffortName, checkTitle, isoDate, renderElement, renderMap, renderSpec, renderTicket, slugify, ticketFileName, ticketId } from '../model/create.ts';
 import { contentHash, parseItem } from '../model/parse.ts';
 import type { ModelManager } from './models.ts';
 
@@ -251,6 +251,48 @@ export class WriteService {
       const id = ticketId(effort, number);
       this.log.info('item.create', { workspace: root, id, operation: 'create_item', hash });
       return { id, hash, path: rel, number };
+    });
+  }
+
+  /**
+   * Creates `architecture/<slug>.md` for a hand-made element (`review: accepted`, empty Description and
+   * Responsibilities). The slug comes from the title and is permanent. Fails `bad_request` for a bad kind, title,
+   * code root, a parent on a container, a non-container parent or an existing slug, `not_found` for a missing parent.
+   */
+  async createElement(
+    root: string,
+    input: { kind: string; title: string; parent?: string; code?: string[] },
+  ): Promise<{ id: string; hash: string; path: string; slug: string }> {
+    if (input.kind !== 'container' && input.kind !== 'component') throw new TaskLogError('bad_request', { message: 'kind must be "container" or "component".' });
+    const kind = input.kind;
+    const title = checkTitle(input.title);
+    const slug = slugify(title);
+    if (slug === '') throw new TaskLogError('bad_request', { message: `title ${JSON.stringify(title)} has no usable characters for a slug; use letters or digits.` });
+    const code = normalizeCode(input.code ?? []);
+    const idx = await this.models.ready(root);
+    return this.enqueue(`create\0${root}\0${ARCHITECTURE_DIR}`, async () => {
+      let parent: string | undefined;
+      if (input.parent !== undefined) {
+        if (kind === 'container') throw new TaskLogError('bad_request', { message: 'A container has no parent; only components take one.' });
+        parent = String(input.parent).trim();
+        const p = idx.entryByPath(`${TASKLOG_DIR}/${ARCHITECTURE_DIR}/${parent}.md`);
+        if (!p || !p.parse.ok) throw new TaskLogError('not_found', { message: `No container "${parent}" to be the parent; check slugs with the architecture tool.`, details: { parent } });
+        if (p.parse.fields.kind !== 'container') throw new TaskLogError('bad_request', { message: `"${parent}" is a ${p.parse.fields.kind}; a parent must be a container.`, details: { parent } });
+      }
+      const rel = `${TASKLOG_DIR}/${ARCHITECTURE_DIR}/${slug}.md`;
+      const abs = path.join(root, ...rel.split('/'));
+      if (fs.existsSync(abs) || idx.entryByPath(rel)) {
+        throw new TaskLogError('bad_request', { message: `An element "${slug}" already exists; slugs are permanent, so pick a different title.`, details: { slug } });
+      }
+      const bytes = Buffer.from(renderElement({ kind, title, parent, code }, isoDate(this.now())), 'utf8');
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      await this.createFile(abs, bytes);
+      const hash = contentHash(bytes);
+      idx.upsertFile(rel, bytes);
+      this.selfWrites.set(`${root}\0${rel}`, hash);
+      const id = `${ARCHITECTURE_DIR}/${slug}`;
+      this.log.info('item.create', { workspace: root, id, operation: 'create_element', hash });
+      return { id, hash, path: rel, slug };
     });
   }
 

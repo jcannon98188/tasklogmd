@@ -9,6 +9,7 @@ import type { ModelManager } from './models.ts';
 import type { WriteService } from './writes.ts';
 import { registerEditTools } from './edit-tools.ts';
 import { registerWorkflowTools } from './workflow-tools.ts';
+import { registerArchitectureTools } from './architecture-tools.ts';
 import { KINDS, STATUSES, TYPES } from '../model/parse.ts';
 import { sectionText } from '../model/workflow.ts';
 import fs from 'node:fs';
@@ -180,6 +181,7 @@ export function createMcpServer(deps: McpDeps, ctx: RequestContext): McpServer {
 
   registerEditTools(server, deps, ctx, wrap);
   registerWorkflowTools(server, deps, ctx, wrap);
+  registerArchitectureTools(server, deps, ctx, wrap);
 
   // The SDK reports invalid arguments as a plain-text tool error. Route them through the error table
   // as `bad_request` so every failure has the same shape and log entry.

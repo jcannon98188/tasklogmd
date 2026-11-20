@@ -267,7 +267,7 @@ function normalizeComponents(list: string[]): string[] {
 
 const GLOB_CHARS = /[*?[\]{}]/;
 
-function normalizeCode(list: string[]): string[] {
+export function normalizeCode(list: string[]): string[] {
   const out: string[] = [];
   for (const raw of list) {
     const p = normalizeRepoPath(String(raw));
