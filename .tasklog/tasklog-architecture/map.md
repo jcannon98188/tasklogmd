@@ -28,6 +28,8 @@ Settled in the opening grilling (26 questions, all agreed); tickets must not reo
 
 ## Decisions so far
 
+- [Structural detection heuristics](tickets/01-structural-detection-heuristics.md): Containers = one per named buildable manifest (workspace members only when declared; Angular/Nx descriptors win); components = depth-1 source dirs, descending once through grouping dirs; tests, fixtures, templates and tooling dirs ignored; manifest-less code dirs reported as unowned; `uses` seeded on new containers only.
+
 ## Not yet specified
 
 - Test strategy for the feature (fixtures, golden scans, how drift is tested). Depends on the scan and format decisions.
