@@ -1,0 +1,87 @@
+{
+  "candidates": [
+    {
+      "kind": "container",
+      "slug": "tasklog",
+      "title": "tasklog",
+      "code": [
+        "."
+      ],
+      "files": [
+        "README.md",
+        "assets/logo.png",
+        "docs/guide.md",
+        "package.json",
+        "scripts/build.mjs",
+        "spikes/02-launch/run.js",
+        "src/cli.ts",
+        "src/client.ts",
+        "test/unit/a.test.ts"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "container",
+      "slug": "tasklogspike2",
+      "title": "tasklogspike2",
+      "code": [
+        "spikes/02-launch/stub"
+      ],
+      "files": [
+        "spikes/02-launch/stub/index.js",
+        "spikes/02-launch/stub/package.json"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "component",
+      "slug": "daemon",
+      "title": "daemon",
+      "parent": "tasklog",
+      "code": [
+        "src/daemon"
+      ],
+      "files": [
+        "src/daemon/core.ts"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "component",
+      "slug": "import",
+      "title": "import",
+      "parent": "tasklog",
+      "code": [
+        "src/import"
+      ],
+      "files": [
+        "src/import/import.ts"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "component",
+      "slug": "model",
+      "title": "model",
+      "parent": "tasklog",
+      "code": [
+        "src/model"
+      ],
+      "files": [
+        "src/model/index.ts"
+      ],
+      "uses": []
+    }
+  ],
+  "ignored": [
+    {
+      "path": "scripts",
+      "reason": "tooling"
+    },
+    {
+      "path": "test",
+      "reason": "test"
+    }
+  ],
+  "unowned": []
+}

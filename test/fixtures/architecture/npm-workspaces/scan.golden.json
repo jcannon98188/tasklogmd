@@ -1,0 +1,146 @@
+{
+  "candidates": [
+    {
+      "kind": "container",
+      "slug": "demo",
+      "title": "demo",
+      "code": [
+        "examples/demo"
+      ],
+      "files": [
+        "examples/demo/main.ts",
+        "examples/demo/package.json"
+      ],
+      "uses": [
+        {
+          "to": "gable-ui",
+          "label": "workspace-dependency"
+        }
+      ]
+    },
+    {
+      "kind": "container",
+      "slug": "gable-core",
+      "title": "@gable/core",
+      "code": [
+        "packages/core"
+      ],
+      "files": [
+        "packages/core/package.json",
+        "packages/core/src/index.ts"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "container",
+      "slug": "gable-ui",
+      "title": "@gable/ui",
+      "code": [
+        "packages/ui"
+      ],
+      "files": [
+        "packages/ui/package.json",
+        "packages/ui/src/index.ts"
+      ],
+      "uses": [
+        {
+          "to": "gable-core",
+          "label": "workspace-dependency"
+        }
+      ]
+    },
+    {
+      "kind": "container",
+      "slug": "site",
+      "title": "site",
+      "code": [
+        "site"
+      ],
+      "files": [
+        "site/package.json",
+        "site/src/app/layout.ts"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "component",
+      "slug": "render",
+      "title": "render",
+      "parent": "gable-core",
+      "code": [
+        "packages/core/src/render"
+      ],
+      "files": [
+        "packages/core/src/render/draw.ts"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "component",
+      "slug": "hooks",
+      "title": "hooks",
+      "parent": "gable-ui",
+      "code": [
+        "packages/ui/src/hooks"
+      ],
+      "files": [
+        "packages/ui/src/hooks/useThing.ts"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "component",
+      "slug": "blog",
+      "title": "blog",
+      "parent": "site",
+      "code": [
+        "site/src/app/blog"
+      ],
+      "files": [
+        "site/src/app/blog/page.ts"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "component",
+      "slug": "docs",
+      "title": "docs",
+      "parent": "site",
+      "code": [
+        "site/src/app/docs"
+      ],
+      "files": [
+        "site/src/app/docs/page.ts"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "component",
+      "slug": "components",
+      "title": "components",
+      "parent": "site",
+      "code": [
+        "site/src/components"
+      ],
+      "files": [
+        "site/src/components/Nav.ts"
+      ],
+      "uses": []
+    }
+  ],
+  "ignored": [
+    {
+      "path": "designer-fixtures/one",
+      "reason": "not-workspace-member"
+    },
+    {
+      "path": "native/harness",
+      "reason": "not-workspace-member"
+    },
+    {
+      "path": "packages/create-gable/templates",
+      "reason": "fixture-template"
+    }
+  ],
+  "unowned": []
+}

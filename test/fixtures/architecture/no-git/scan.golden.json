@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "kind": "container",
+      "slug": "plain",
+      "title": "plain",
+      "code": [
+        "."
+      ],
+      "files": [
+        "package.json",
+        "src/index.ts"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "component",
+      "slug": "util",
+      "title": "util",
+      "parent": "plain",
+      "code": [
+        "src/util"
+      ],
+      "files": [
+        "src/util/helpers.ts"
+      ],
+      "uses": []
+    }
+  ],
+  "ignored": [],
+  "unowned": []
+}

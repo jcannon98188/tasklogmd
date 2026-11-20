@@ -14,6 +14,8 @@ TaskLog 0.2.0 released with the Architecture feature as specified in tasklog-arc
 
 ## Decisions so far
 
+- [Slice 3: Detection](tickets/03-slice-3-detection.md): Pure detection package, fixtures and goldens merged; one deviation on root-level unowned code to verify in the real-repo check.
+
 ## Not yet specified
 
 ## Out of scope

@@ -1,0 +1,25 @@
+{
+  "_comment": "Gable shape: workspace globs, a non-member manifest, fixture and template directories, a grouping directory descended once",
+  "files": {
+    "package.json": "{\"name\":\"gable\",\"private\":true,\"workspaces\":[\"packages/*\",\"examples/*\",\"site\"]}",
+    "packages/core/package.json": "{\"name\":\"@gable/core\"}",
+    "packages/core/src/index.ts": "",
+    "packages/core/src/render/draw.ts": "",
+    "packages/ui/package.json": "{\"name\":\"@gable/ui\",\"dependencies\":{\"@gable/core\":\"*\"}}",
+    "packages/ui/src/index.ts": "",
+    "packages/ui/src/hooks/useThing.ts": "",
+    "examples/demo/package.json": "{\"name\":\"demo\",\"dependencies\":{\"@gable/ui\":\"*\"}}",
+    "examples/demo/main.ts": "",
+    "site/package.json": "{\"name\":\"site\"}",
+    "site/src/app/layout.ts": "",
+    "site/src/app/docs/page.ts": "",
+    "site/src/app/blog/page.ts": "",
+    "site/src/components/Nav.ts": "",
+    "designer-fixtures/one/package.json": "{\"name\":\"fx-one\"}",
+    "designer-fixtures/one/i.js": "",
+    "packages/create-gable/templates/basic/package.json": "{\"name\":\"tpl-basic\"}",
+    "packages/create-gable/templates/basic/i.js": "",
+    "native/harness/package.json": "{\"name\":\"harness\"}",
+    "native/harness/i.js": ""
+  }
+}

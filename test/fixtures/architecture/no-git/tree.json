@@ -1,0 +1,18 @@
+{
+  "_comment": "Non-git workspace: the file list is built-in-ignore-filtered by the caller (.git, node_modules, dist, bin, obj, target, vendor, .tasklog never reach detect). Only goldens of the filtered list live here; the unfiltered list is kept under _unfiltered for the daemon slice's file lister.",
+  "_unfiltered": [
+    ".git/config",
+    "node_modules/dep/package.json",
+    "dist/index.js",
+    "bin/tool.js",
+    "obj/x.cs",
+    "target/debug/x.rs",
+    "vendor/lib/lib.go",
+    ".tasklog/tasklog/map.md"
+  ],
+  "files": {
+    "package.json": "{\"name\":\"plain\"}",
+    "src/index.ts": "",
+    "src/util/helpers.ts": ""
+  }
+}

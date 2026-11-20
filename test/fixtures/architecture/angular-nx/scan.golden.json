@@ -1,0 +1,117 @@
+{
+  "candidates": [
+    {
+      "kind": "container",
+      "slug": "shop",
+      "title": "shop",
+      "code": [
+        "."
+      ],
+      "files": [
+        "angular.json",
+        "e2e/cart.cy.ts",
+        "package.json",
+        "src/app/app.component.ts",
+        "src/main.ts"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "container",
+      "slug": "data",
+      "title": "data",
+      "code": [
+        "libs/data"
+      ],
+      "files": [
+        "libs/data/package.json",
+        "libs/data/project.json"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "container",
+      "slug": "ui",
+      "title": "ui",
+      "code": [
+        "projects/ui"
+      ],
+      "files": [
+        "projects/ui/src/public-api.ts"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "component",
+      "slug": "api",
+      "title": "api",
+      "parent": "data",
+      "code": [
+        "libs/data/src/api"
+      ],
+      "files": [
+        "libs/data/src/api/client.ts"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "component",
+      "slug": "store",
+      "title": "store",
+      "parent": "data",
+      "code": [
+        "libs/data/src/store"
+      ],
+      "files": [
+        "libs/data/src/store/store.ts"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "component",
+      "slug": "button",
+      "title": "button",
+      "parent": "ui",
+      "code": [
+        "projects/ui/src/button"
+      ],
+      "files": [
+        "projects/ui/src/button/button.ts"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "component",
+      "slug": "cart",
+      "title": "cart",
+      "parent": "shop",
+      "code": [
+        "src/app/cart"
+      ],
+      "files": [
+        "src/app/cart/cart.ts"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "component",
+      "slug": "checkout",
+      "title": "checkout",
+      "parent": "shop",
+      "code": [
+        "src/app/checkout"
+      ],
+      "files": [
+        "src/app/checkout/checkout.ts"
+      ],
+      "uses": []
+    }
+  ],
+  "ignored": [
+    {
+      "path": "e2e",
+      "reason": "tooling"
+    }
+  ],
+  "unowned": []
+}

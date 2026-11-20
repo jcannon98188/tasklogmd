@@ -1,0 +1,19 @@
+{
+  "_comment": "tasklogmd shape: one package, depth-1 components of src/, nested-manifest wrinkle under spikes/",
+  "files": {
+    "package.json": "{\"name\":\"tasklog\",\"version\":\"1.0.0\"}",
+    "README.md": "",
+    "src/cli.ts": "",
+    "src/client.ts": "",
+    "src/daemon/core.ts": "",
+    "src/model/index.ts": "",
+    "src/import/import.ts": "",
+    "test/unit/a.test.ts": "",
+    "scripts/build.mjs": "",
+    "docs/guide.md": "",
+    "assets/logo.png": "",
+    "spikes/02-launch/stub/package.json": "{\"name\":\"tasklogspike2\",\"private\":true}",
+    "spikes/02-launch/stub/index.js": "",
+    "spikes/02-launch/run.js": ""
+  }
+}

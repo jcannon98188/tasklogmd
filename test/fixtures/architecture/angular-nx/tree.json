@@ -1,0 +1,18 @@
+{
+  "_comment": "Angular and Nx descriptors define containers and beat the root package.json",
+  "files": {
+    "package.json": "{\"name\":\"shop-root\"}",
+    "angular.json": "{\"projects\":{\"shop\":{\"root\":\"\",\"sourceRoot\":\"src\"},\"ui\":{\"root\":\"projects/ui\",\"sourceRoot\":\"projects/ui/src\"}}}",
+    "src/main.ts": "",
+    "src/app/app.component.ts": "",
+    "src/app/cart/cart.ts": "",
+    "src/app/checkout/checkout.ts": "",
+    "projects/ui/src/button/button.ts": "",
+    "projects/ui/src/public-api.ts": "",
+    "libs/data/project.json": "{\"name\":\"data\"}",
+    "libs/data/package.json": "{\"name\":\"data-pkg\"}",
+    "libs/data/src/api/client.ts": "",
+    "libs/data/src/store/store.ts": "",
+    "e2e/cart.cy.ts": ""
+  }
+}
