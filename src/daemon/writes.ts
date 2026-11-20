@@ -296,6 +296,35 @@ export class WriteService {
     });
   }
 
+  /**
+   * Creates `architecture/<slug>.md` from rendered text, for the scan. Shares `createElement`'s queue, so the
+   * scan and `create_element` race to exactly one winner per slug. Fails `bad_request` with `details.exists: true`
+   * (changing nothing) when an element file with that slug exists on disk or in the model.
+   */
+  async createElementFile(root: string, slug: string, text: string): Promise<{ id: string; hash: string; path: string }> {
+    const idx = await this.models.ready(root);
+    const rel = `${TASKLOG_DIR}/${ARCHITECTURE_DIR}/${slug}.md`;
+    const exists = () => new TaskLogError('bad_request', { message: `Element "${slug}" already exists; pick another slug.`, details: { exists: true, slug } });
+    return this.enqueue(`create\0${root}\0${ARCHITECTURE_DIR}`, async () => {
+      const abs = path.join(root, ...rel.split('/'));
+      if (idx.entryByPath(rel) || fs.existsSync(abs)) throw exists();
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      const bytes = Buffer.from(text, 'utf8');
+      try {
+        await this.createFile(abs, bytes);
+      } catch (e) {
+        if (e instanceof TaskLogError && e.code === 'bad_request') throw exists();
+        throw e;
+      }
+      const hash = contentHash(bytes);
+      idx.upsertFile(rel, bytes);
+      this.selfWrites.set(`${root}\0${rel}`, hash);
+      const id = `${ARCHITECTURE_DIR}/${slug}`;
+      this.log.info('item.create', { workspace: root, id, operation: 'scan_architecture', hash });
+      return { id, hash, path: rel };
+    });
+  }
+
   /** Writes a new file atomically and exclusively: temp file, then a hard link (fails if the target exists). */
   private async createFile(abs: string, bytes: Buffer): Promise<void> {
     const tmp = path.join(path.dirname(abs), `.${path.basename(abs)}.${randomBytes(4).toString('hex')}${TEMP_SUFFIX}`);

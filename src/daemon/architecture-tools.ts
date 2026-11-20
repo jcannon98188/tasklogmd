@@ -5,8 +5,8 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { TaskLogError } from '../errors.ts';
 import { applyDepth, buildTree, danglingWarnings, filterFindings, filterWarnings, lookupOwners, scopeTree, type TicketLink } from '../model/architecture.ts';
-import { computeDrift, type DriftFinding } from '../model/drift.ts';
-import { listWorkspaceFiles } from './files.ts';
+import { planFindingToDrift, type DriftFinding } from '../model/drift.ts';
+import { computeScan, scanArchitecture } from './architecture-scan.ts';
 import type { McpDeps, RequestContext } from './mcp.ts';
 import { resolveWorkspace } from './mcp.ts';
 
@@ -38,6 +38,8 @@ export function registerArchitectureTools(server: McpServer, deps: McpDeps, ctx:
       if (a.depth !== undefined && (typeof a.depth !== 'number' || !Number.isInteger(a.depth) || a.depth < 0)) throw bad('depth must be a non-negative integer: 0 for containers only, 1 (default) for components too.');
       const depth: 0 | 1 = a.depth === 0 ? 0 : 1;
       const idx = await deps.models.ready(ws);
+      // Drift is the scan plan run read-only (slice 5); it also catches the model up with the files on disk.
+      let findings: DriftFinding[] = a.drift === false ? [] : (await computeScan(deps.models, ws)).plan.findings.map(planFindingToDrift);
       const elements = idx.elements();
       const tickets: TicketLink[] = idx
         .entries()
@@ -45,7 +47,6 @@ export function registerArchitectureTools(server: McpServer, deps: McpDeps, ctx:
         .map((e) => ({ id: e.id, status: e.parse.ok ? e.parse.fields.status : undefined, components: e.parse.ok ? (e.parse.fields.components ?? []) : [] }));
       let tree = buildTree(elements, tickets);
       let warnings = danglingWarnings(elements, tickets);
-      let findings: DriftFinding[] = a.drift === false ? [] : computeDrift(elements, await listWorkspaceFiles(ws));
       if (a.root !== undefined) {
         const scoped = scopeTree(tree, elements, a.root);
         tree = scoped.stub ? scoped.tree : applyDepth(scoped.tree, depth);
@@ -70,6 +71,19 @@ export function registerArchitectureTools(server: McpServer, deps: McpDeps, ctx:
       },
     },
     wrap(async (a: { kind: string; title: string; parent?: string; code?: string[]; workspace?: string }) => ({ ...(await deps.writes.createElement(root(a.workspace), a)) })),
+  );
+
+  server.registerTool(
+    'scan_architecture',
+    {
+      description:
+        'Propose and refresh architecture elements from the repo: one container per buildable manifest and one component per source directory, matched to existing elements by the files they own. New elements are written `proposed` with empty Description and Responsibilities; a rescan changes only owned `code` roots and never touches curated content, review state or other elements. Drift (missing paths, unowned code, renames) is reported in `findings`, never fixed. With `dry_run: true` it reports the same result and writes nothing.',
+      inputSchema: {
+        dry_run: z.boolean().optional().describe('true: compute and report the result without writing any file.'),
+        workspace: workspaceArg,
+      },
+    },
+    wrap(async (a: { dry_run?: boolean; workspace?: string }) => ({ ...(await scanArchitecture(deps, root(a.workspace), a.dry_run === true)) })),
   );
 
   server.registerTool(

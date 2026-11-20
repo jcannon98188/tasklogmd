@@ -1,0 +1,95 @@
+{
+  "dry_run": true,
+  "created": [
+    {
+      "id": "architecture/waymark-abi-common",
+      "kind": "container",
+      "title": "Waymark.Abi.Common",
+      "code": [
+        "src/Waymark.Abi.Common"
+      ]
+    },
+    {
+      "id": "architecture/waymark-analyzers",
+      "kind": "container",
+      "title": "Waymark.Analyzers",
+      "code": [
+        "src/Waymark.Analyzers"
+      ]
+    },
+    {
+      "id": "architecture/waymark-foundation",
+      "kind": "container",
+      "title": "Waymark.Foundation",
+      "code": [
+        "src/Waymark.Foundation"
+      ]
+    },
+    {
+      "id": "architecture/config",
+      "kind": "component",
+      "title": "Config",
+      "parent": "waymark-foundation",
+      "code": [
+        "src/Waymark.Foundation/Config"
+      ]
+    },
+    {
+      "id": "architecture/memory",
+      "kind": "component",
+      "title": "Memory",
+      "parent": "waymark-foundation",
+      "code": [
+        "src/Waymark.Foundation/Memory"
+      ]
+    },
+    {
+      "id": "architecture/threading",
+      "kind": "component",
+      "title": "Threading",
+      "parent": "waymark-foundation",
+      "code": [
+        "src/Waymark.Foundation/Threading"
+      ]
+    }
+  ],
+  "updated": [],
+  "unchanged": 0,
+  "skipped": [],
+  "findings": [
+    {
+      "category": "unowned-code",
+      "path": "build",
+      "detail": "Code in build is not owned by any element."
+    },
+    {
+      "category": "unowned-code",
+      "path": "native",
+      "detail": "Code in native is not owned by any element."
+    }
+  ],
+  "ignored": {
+    "test": {
+      "count": 1,
+      "paths": [
+        "tests/Waymark.Foundation.Tests"
+      ]
+    },
+    "fixture-template": {
+      "count": 0,
+      "paths": []
+    },
+    "tooling": {
+      "count": 0,
+      "paths": []
+    },
+    "user": {
+      "count": 0,
+      "paths": []
+    },
+    "not-workspace-member": {
+      "count": 0,
+      "paths": []
+    }
+  }
+}

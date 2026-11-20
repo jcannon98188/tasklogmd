@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Element } from '../../src/architecture/types.ts';
 import { filterFindings, filterWarnings, ownersOfPath } from '../../src/model/architecture.ts';
-import { computeDrift } from '../../src/model/drift.ts';
+import { planFindingToDrift } from '../../src/model/drift.ts';
 
 const el = (slug: string, kind: 'container' | 'component', code: string[], parent?: string): Element => ({ slug, kind, title: slug, review: 'accepted', uses: [], code, ...(parent ? { parent } : {}) });
 
@@ -48,23 +48,9 @@ describe('filterWarnings', () => {
   });
 });
 
-describe('computeDrift (stub)', () => {
-  it('reports a missing root and groups unowned code by shallowest unowned directory', () => {
-    const files = ['src/a/x.ts', 'src/a/y.ts', 'src/b/z.ts', 'src/stray/q.ts', 'top.ts', 'readme.md'];
-    const elements = [el('a', 'container', ['src/a']), el('gone', 'container', ['src/gone'])];
-    expect(computeDrift(elements, files)).toEqual([
-      { category: 'missing-path', id: 'gone', path: 'src/gone', detail: 'gone owns src/gone, which does not exist' },
-      { category: 'unowned-code', path: 'src/b', detail: '1 code file under src/b has no owner' },
-      { category: 'unowned-code', path: 'src/stray', detail: '1 code file under src/stray has no owner' },
-      { category: 'unowned-code', path: 'top.ts', detail: '1 code file has no owner' },
-    ]);
-  });
-
-  it('a root of . is never missing and owns everything', () => {
-    expect(computeDrift([el('all', 'container', ['.'])], ['a/b.ts'])).toEqual([]);
-  });
-
-  it('an empty architecture over an empty file list has no findings', () => {
-    expect(computeDrift([], [])).toEqual([]);
+describe('planFindingToDrift', () => {
+  it('maps the planner finding to the tool shape: element becomes id, message becomes detail', () => {
+    expect(planFindingToDrift({ category: 'missing-path', element: 'gone', path: 'src/gone', message: 'm' })).toEqual({ category: 'missing-path', id: 'gone', path: 'src/gone', detail: 'm' });
+    expect(planFindingToDrift({ category: 'unowned-code', path: 'lib', message: 'm' })).toEqual({ category: 'unowned-code', path: 'lib', detail: 'm' });
   });
 });

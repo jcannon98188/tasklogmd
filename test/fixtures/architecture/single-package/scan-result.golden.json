@@ -1,0 +1,78 @@
+{
+  "dry_run": true,
+  "created": [
+    {
+      "id": "architecture/tasklog",
+      "kind": "container",
+      "title": "tasklog",
+      "code": [
+        "."
+      ]
+    },
+    {
+      "id": "architecture/tasklogspike2",
+      "kind": "container",
+      "title": "tasklogspike2",
+      "code": [
+        "spikes/02-launch/stub"
+      ]
+    },
+    {
+      "id": "architecture/daemon",
+      "kind": "component",
+      "title": "daemon",
+      "parent": "tasklog",
+      "code": [
+        "src/daemon"
+      ]
+    },
+    {
+      "id": "architecture/import",
+      "kind": "component",
+      "title": "import",
+      "parent": "tasklog",
+      "code": [
+        "src/import"
+      ]
+    },
+    {
+      "id": "architecture/model",
+      "kind": "component",
+      "title": "model",
+      "parent": "tasklog",
+      "code": [
+        "src/model"
+      ]
+    }
+  ],
+  "updated": [],
+  "unchanged": 0,
+  "skipped": [],
+  "findings": [],
+  "ignored": {
+    "test": {
+      "count": 1,
+      "paths": [
+        "test"
+      ]
+    },
+    "fixture-template": {
+      "count": 0,
+      "paths": []
+    },
+    "tooling": {
+      "count": 1,
+      "paths": [
+        "scripts"
+      ]
+    },
+    "user": {
+      "count": 0,
+      "paths": []
+    },
+    "not-workspace-member": {
+      "count": 0,
+      "paths": []
+    }
+  }
+}

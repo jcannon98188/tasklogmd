@@ -95,8 +95,8 @@ describe('architecture', () => {
   const MODEL = { id: 'model', title: 'Model', review: 'proposed', uses: [], tickets: { open: 0, claimed: 0 } };
   const WRITES = { id: 'writes', title: 'Writes', review: 'proposed', uses: [], tickets: { open: 0, claimed: 0 } };
   const TOOLS = { id: 'tools', title: 'Tools', review: 'accepted', uses: [], tickets: { open: 0, claimed: 0 } };
-  const MISSING = { category: 'missing-path', id: 'tools', path: 'src/daemon/tools', detail: 'tools owns src/daemon/tools, which does not exist' };
-  const UNOWNED = { category: 'unowned-code', path: 'src/stray', detail: '1 code file under src/stray has no owner' };
+  const MISSING = { category: 'missing-path', id: 'tools', path: 'src/daemon/tools', detail: 'Element tools owns src/daemon/tools, but no files were found there.' };
+  const UNOWNED = { category: 'unowned-code', path: 'src', detail: 'Code in src is not owned by any element.' };
   const WARN_USES = { id: 'architecture/daemon', field: 'uses', slug: 'nowhere', detail: 'daemon uses "nowhere", which is not an element' };
 
   it('returns the nested tree with drift and warnings, no bodies and no code arrays', async () => {
@@ -153,8 +153,8 @@ describe('architecture', () => {
     expect(r.structuredContent).toEqual({
       containers: [],
       findings: [
-        { category: 'unowned-code', path: 'src', detail: '1 code file under src has no owner' },
-        { category: 'unowned-code', path: 'top.ts', detail: '1 code file has no owner' },
+        { category: 'unowned-code', path: '.', detail: 'Code in . is not owned by any element.' },
+        { category: 'unowned-code', path: 'src', detail: 'Code in src is not owned by any element.' },
       ],
       warnings: [],
     });

@@ -1,0 +1,48 @@
+{
+  "dry_run": true,
+  "created": [
+    {
+      "id": "architecture/plain",
+      "kind": "container",
+      "title": "plain",
+      "code": [
+        "."
+      ]
+    },
+    {
+      "id": "architecture/util",
+      "kind": "component",
+      "title": "util",
+      "parent": "plain",
+      "code": [
+        "src/util"
+      ]
+    }
+  ],
+  "updated": [],
+  "unchanged": 0,
+  "skipped": [],
+  "findings": [],
+  "ignored": {
+    "test": {
+      "count": 0,
+      "paths": []
+    },
+    "fixture-template": {
+      "count": 0,
+      "paths": []
+    },
+    "tooling": {
+      "count": 0,
+      "paths": []
+    },
+    "user": {
+      "count": 0,
+      "paths": []
+    },
+    "not-workspace-member": {
+      "count": 0,
+      "paths": []
+    }
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "dry_run": true,
+  "created": [
+    {
+      "id": "architecture/shop",
+      "kind": "container",
+      "title": "shop",
+      "code": [
+        "."
+      ]
+    },
+    {
+      "id": "architecture/data",
+      "kind": "container",
+      "title": "data",
+      "code": [
+        "libs/data"
+      ]
+    },
+    {
+      "id": "architecture/ui",
+      "kind": "container",
+      "title": "ui",
+      "code": [
+        "projects/ui"
+      ]
+    },
+    {
+      "id": "architecture/api",
+      "kind": "component",
+      "title": "api",
+      "parent": "data",
+      "code": [
+        "libs/data/src/api"
+      ]
+    },
+    {
+      "id": "architecture/store",
+      "kind": "component",
+      "title": "store",
+      "parent": "data",
+      "code": [
+        "libs/data/src/store"
+      ]
+    },
+    {
+      "id": "architecture/button",
+      "kind": "component",
+      "title": "button",
+      "parent": "ui",
+      "code": [
+        "projects/ui/src/button"
+      ]
+    },
+    {
+      "id": "architecture/cart",
+      "kind": "component",
+      "title": "cart",
+      "parent": "shop",
+      "code": [
+        "src/app/cart"
+      ]
+    },
+    {
+      "id": "architecture/checkout",
+      "kind": "component",
+      "title": "checkout",
+      "parent": "shop",
+      "code": [
+        "src/app/checkout"
+      ]
+    }
+  ],
+  "updated": [],
+  "unchanged": 0,
+  "skipped": [],
+  "findings": [],
+  "ignored": {
+    "test": {
+      "count": 0,
+      "paths": []
+    },
+    "fixture-template": {
+      "count": 0,
+      "paths": []
+    },
+    "tooling": {
+      "count": 1,
+      "paths": [
+        "e2e"
+      ]
+    },
+    "user": {
+      "count": 0,
+      "paths": []
+    },
+    "not-workspace-member": {
+      "count": 0,
+      "paths": []
+    }
+  }
+}

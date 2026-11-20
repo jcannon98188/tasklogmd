@@ -1,0 +1,51 @@
+{
+  "dry_run": true,
+  "created": [],
+  "updated": [],
+  "unchanged": 0,
+  "skipped": [],
+  "findings": [
+    {
+      "category": "unowned-code",
+      "path": ".",
+      "detail": "Code in . is not owned by any element."
+    },
+    {
+      "category": "unowned-code",
+      "path": "build",
+      "detail": "Code in build is not owned by any element."
+    },
+    {
+      "category": "unowned-code",
+      "path": "scripts",
+      "detail": "Code in scripts is not owned by any element."
+    },
+    {
+      "category": "unowned-code",
+      "path": "spikes",
+      "detail": "Code in spikes is not owned by any element."
+    }
+  ],
+  "ignored": {
+    "test": {
+      "count": 0,
+      "paths": []
+    },
+    "fixture-template": {
+      "count": 0,
+      "paths": []
+    },
+    "tooling": {
+      "count": 0,
+      "paths": []
+    },
+    "user": {
+      "count": 0,
+      "paths": []
+    },
+    "not-workspace-member": {
+      "count": 0,
+      "paths": []
+    }
+  }
+}
