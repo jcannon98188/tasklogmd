@@ -21,6 +21,8 @@ TaskLog 0.2.0 released with the Architecture feature as specified in tasklog-arc
 - [Slice 5: Scan apply](tickets/05-slice-5-scan-apply.md): `scan_architecture` and real drift merged; found a 50%-rule re-proposal loop, raised as ticket 11.
 - [Slice 6: CLI scan and MCP e2e smoke test](tickets/06-slice-6-cli-scan-and-mcp-e2e-smoke-test.md): `tasklog scan` CLI and MCP e2e smoke test merged.
 - [Slice 7a: Docs and onboarding](tickets/07-slice-7a-docs-and-onboarding.md): README, tracker template section, setup patch, ADR 0002, tool descriptions and doctor warning merged.
+- [Decide: container re-proposal under the 50% rule](tickets/11-decide-container-re-proposal-under-the-50-rule.md): Containers match on container-level ownership only, ending the re-proposal loop; 50% rule unchanged.
+- [Slice 7b: Real-repo scan check](tickets/08-slice-7b-real-repo-scan-check.md): Read-only detect+plan over tasklogmd, rpgengine and Gable matches ticket 01 in shape; no blockers.
 
 ## Not yet specified
 
