@@ -70,6 +70,28 @@ export function renderSpec(title: string, date: string): string {
   ])}\n`;
 }
 
+export interface NewElement {
+  kind: 'container' | 'component';
+  title: string;
+  parent?: string;
+  /** Already normalised roots. */
+  code: string[];
+}
+
+/** A hand-created element: `review: accepted`, empty Description and Responsibilities, nothing else. */
+export function renderElement(e: NewElement, date: string): string {
+  const fm = frontmatter([
+    ['kind', e.kind],
+    ['title', renderString(e.title, 'plain')],
+    ['review', 'accepted'],
+    ['parent', e.parent],
+    ['code', e.code.length > 0 ? `[${e.code.map((c) => renderString(c, 'plain')).join(', ')}]` : undefined],
+    ['created', date],
+    ['updated', date],
+  ]);
+  return `${fm}\n## Description\n\n## Responsibilities\n`;
+}
+
 export interface NewTicket {
   effort: string;
   number: number;
