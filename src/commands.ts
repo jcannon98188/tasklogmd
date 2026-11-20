@@ -2,7 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { callDaemon, ensureDaemon, EnsureDaemonError, probeDaemon, stopDaemon, type Probe } from './client.ts';
 import { runDaemonProcess } from './daemon/run.ts';
+import type { ScanResult } from './daemon/architecture-scan.ts';
 import { runDoctor } from './doctor.ts';
+import { callTool } from './mcp-call.ts';
+import { formatScan } from './scan-format.ts';
 import { formatReport, ImportUsageError, runImport } from './import/import.ts';
 import { createLogger, parseLevel, shimLoggerOptions, type Logger } from './log.ts';
 import { dataPaths, type DataPaths } from './paths.ts';
@@ -37,6 +40,8 @@ const USAGE = `usage: tasklog <command> [options]
   list [--json] [--workspace <p>]      list registered workspaces
   import <path> [--dry-run] [--json] [--effort <name>] [--group-by none]
                                        convert a backlog or scratch layout into .tasklog/
+  scan [--dry-run] [--json] [--workspace <p>]
+                                       propose architecture elements from the repo
   doctor [--json] [--workspace <p>]    verify the install
   --version                            print version and protocol
 exit codes: 0 ok, 1 failed, 2 usage, 3 no daemon (status), 4 daemon newer than this CLI
@@ -54,6 +59,7 @@ const SPEC: Record<string, { flags: string[]; values: string[]; positionals: num
   remove: { flags: [], values: [], positionals: 1 },
   list: { flags: ['--json'], values: ['--workspace'], positionals: 0 },
   doctor: { flags: ['--json'], values: ['--workspace'], positionals: 0 },
+  scan: { flags: ['--json', '--dry-run'], values: ['--workspace'], positionals: 0 },
   import: { flags: ['--json', '--dry-run'], values: ['--effort', '--group-by'], positionals: 1 },
 };
 
@@ -273,6 +279,35 @@ export async function runCommand(argv: string[], io: CliIo): Promise<number> {
         if (e instanceof ImportUsageError) return usageFail(e.message);
         return fail(`import failed: ${(e as Error).message}`);
       }
+    }
+
+    case 'scan': {
+      const root = wsOpt ? (fs.existsSync(path.join(wsDir, TASKLOG_DIR)) ? wsDir : null) : findWorkspaceRoot(io.cwd);
+      if (!root) return fail('no .tasklog/ workspace here; run "tasklog init" first.');
+      const d = await needDaemon();
+      if ('code' in d) return d.code;
+      const dryRun = args.flags.has('--dry-run');
+      let r;
+      try {
+        r = await callTool(d.probe.state, 'scan_architecture', { dry_run: dryRun }, { workspace: root, timeoutMs: 120_000 });
+      } catch (e) {
+        return fail(`scan failed: ${(e as Error).message}`);
+      }
+      if (r.isError) return fail(errorMessage(r.structuredContent, 'scan failed'));
+      const result = r.structuredContent as ScanResult;
+      if (json) {
+        out(JSON.stringify(result));
+        return EXIT.ok;
+      }
+      let proposed = dryRun ? result.created.length : 0;
+      try {
+        const st = await callTool(d.probe.state, 'workspace_status', {}, { workspace: root });
+        proposed += (st.structuredContent?.architecture?.proposed as number | undefined) ?? 0;
+      } catch {
+        proposed = Math.max(proposed, result.created.length);
+      }
+      out(formatScan(result, proposed));
+      return EXIT.ok;
     }
 
     case 'doctor': {
