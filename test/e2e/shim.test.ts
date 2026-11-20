@@ -124,6 +124,41 @@ describe('stdio shim against a real detached daemon', () => {
   });
 });
 
+describe('architecture tools through the real shim', () => {
+  it('lists the new tools and each is callable: scan, create_element, architecture, owners', async () => {
+    const ws = mkWorkspace(root);
+    fs.writeFileSync(path.join(ws, 'package.json'), JSON.stringify({ name: 'smoke' }));
+    fs.mkdirSync(path.join(ws, 'src', 'core'), { recursive: true });
+    fs.writeFileSync(path.join(ws, 'src', 'core', 'index.ts'), 'export {};\n');
+    const client = await connect(ws);
+    const tools = (await client.listTools()).tools.map((t) => t.name);
+    expect(tools).toEqual(expect.arrayContaining(['scan_architecture', 'architecture', 'create_element', 'owners']));
+
+    const dry = await client.callTool({ name: 'scan_architecture', arguments: { dry_run: true } });
+    expect(dry.isError).toBeFalsy();
+    expect(text(dry).dry_run).toBe(true);
+    expect(text(dry).created.length).toBeGreaterThan(0);
+    expect(fs.existsSync(path.join(ws, '.tasklog', 'architecture'))).toBe(false);
+
+    const scan = await client.callTool({ name: 'scan_architecture', arguments: {} });
+    expect(scan.isError).toBeFalsy();
+    expect(text(scan).created.map((c: { id: string }) => c.id)).toEqual(expect.arrayContaining(['architecture/smoke']));
+
+    const made = await client.callTool({ name: 'create_element', arguments: { kind: 'component', title: 'Scripts', parent: 'smoke', code: ['scripts'] } });
+    expect(made.isError).toBeFalsy();
+    expect(text(made).id).toBe('architecture/scripts');
+
+    const tree = await client.callTool({ name: 'architecture', arguments: {} });
+    expect(tree.isError).toBeFalsy();
+    expect(text(tree).containers[0].id).toBe('smoke');
+
+    const own = await client.callTool({ name: 'owners', arguments: { paths: ['scripts/build.mjs', 'nowhere/x.ts'] } });
+    expect(own.isError).toBeFalsy();
+    expect(text(own).owners.map((o: { id: string }) => o.id).sort()).toEqual(['scripts', 'smoke']);
+    expect(text(own).unowned).toEqual([]);
+  });
+});
+
 describe('CLI', () => {
   it('status exits 3 with no daemon and never starts one; stop exits 0', async () => {
     const s = await runCli(['status']);
