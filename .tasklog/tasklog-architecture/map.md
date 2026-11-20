@@ -36,7 +36,8 @@ Settled in the opening grilling (26 questions, all agreed); tickets must not reo
 
 ## Not yet specified
 
-_none: the last patch graduated into Build order, package layout and release steps for 0.2.0._
+- **Derived relationships**: Groma infers component-to-component relationships from symbols (supplied callbacks, HTTP calls). Ours seeds `uses` only between containers and otherwise relies on curation. Once symbol analysis and per-language plugins exist, decide what is derived, how derived rows are kept apart from authored ones, and how a rescan replaces only the derived part. Revisit after 0.2.0.
+- **Curation helpers**: rename and combine of elements (Groma has `edit --id` and `--combine`; we rely on hand edits and rescan). Revisit if curation proves painful in real use.
 
 ## Out of scope
 
