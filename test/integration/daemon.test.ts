@@ -188,6 +188,52 @@ describe('versioning', () => {
     await old.stopped; // old daemon fully exited
   });
 
+  describe('same-protocol version skew', () => {
+    const run = async (daemonVersion: string, clientVersion: string) => {
+      const old = await env.start({ protocol: 1, version: daemonVersion });
+      let spawned = 0;
+      const r = await ensureDaemon({
+        paths: env.paths,
+        log: env.log,
+        protocol: 1,
+        version: clientVersion,
+        spawn: () => {
+          spawned++;
+          void env.start({ protocol: 1, version: clientVersion });
+        },
+      });
+      return { old, r, spawned };
+    };
+
+    it('restarts a daemon whose release is older than the client', async () => {
+      const { old, r, spawned } = await run('0.1.1', '0.2.0');
+      expect(r.action).toBe('restarted');
+      expect(spawned).toBe(1);
+      expect(r.probe.health.version).toBe('0.2.0');
+      expect(r.probe.state.port).not.toBe(old.port);
+      await old.stopped;
+    });
+
+    it('compares numerically, not lexically (0.9.0 is older than 0.10.0)', async () => {
+      const { r } = await run('0.9.0', '0.10.0');
+      expect(r.action).toBe('restarted');
+    });
+
+    it.each([
+      ['same version', '0.2.0', '0.2.0'],
+      ['same version, differing prerelease/build', '0.2.0-rc.1', '0.2.0+build5'],
+      ['daemon newer by version', '0.3.0', '0.2.0'],
+      ['dev client', '0.1.1', '0.0.0-dev'],
+      ['dev daemon', '0.0.0-dev', '0.2.0'],
+      ['unparseable daemon version', 'x', '0.2.0'],
+    ])('leaves the daemon alone: %s', async (_n, daemonVersion, clientVersion) => {
+      const { old, r, spawned } = await run(daemonVersion, clientVersion);
+      expect(r.action).toBe('reused');
+      expect(spawned).toBe(0);
+      expect(r.probe.state.port).toBe(old.port);
+    });
+  });
+
   it('an older shim facing a newer daemon errors and leaves the daemon running', async () => {
     const newer = await env.start({ protocol: 2, version: '2.0.0' });
     let spawned = 0;

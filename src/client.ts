@@ -6,7 +6,7 @@ import { pidAlive, sleep } from './fsutil.ts';
 import type { Logger } from './log.ts';
 import type { DataPaths } from './paths.ts';
 import { lockHolder, readDaemonState, type DaemonState } from './state.ts';
-import { PROTOCOL } from './version.ts';
+import { PROTOCOL, VERSION } from './version.ts';
 
 export interface HealthBody {
   ok: boolean;
@@ -111,6 +111,8 @@ export interface EnsureOptions {
   paths: DataPaths;
   log: Logger;
   protocol?: number;
+  /** This client's release; defaults to the built VERSION. */
+  version?: string;
   /** Starts a daemon without waiting. Defaults to the real detached spawn; tests inject in-process ones. */
   spawn?: () => void;
   timeoutMs?: number;
@@ -119,6 +121,22 @@ export interface EnsureOptions {
 export interface Ensured {
   probe: Probe;
   action: 'reused' | 'spawned' | 'restarted';
+}
+
+/** Parses major.minor.patch, ignoring prerelease/build; null for anything that is not a real version (e.g. the dev build). */
+function parseRelease(v: string): [number, number, number] | null {
+  if (v === '0.0.0' || v.startsWith('0.0.0-') || v.startsWith('0.0.0+')) return null;
+  const m = /^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(v);
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+}
+
+/** True only when both versions are real releases and `daemon` is strictly older than `client`. */
+function isOlderRelease(daemon: string, client: string): boolean {
+  const d = parseRelease(daemon);
+  const c = parseRelease(client);
+  if (!d || !c) return false;
+  for (let i = 0; i < 3; i++) if (d[i] !== c[i]) return d[i]! < c[i]!;
+  return false;
 }
 
 async function waitFor<T>(fn: () => Promise<T | null>, timeoutMs: number): Promise<T | null> {
@@ -134,12 +152,13 @@ async function waitFor<T>(fn: () => Promise<T | null>, timeoutMs: number): Promi
 /**
  * Finds a compatible daemon or starts one (spec section 2 lifecycle and versioning).
  * - none/stale: spawn, wait up to ~10 s for a healthy state file;
- * - older daemon: `POST /shutdown`, wait for it to go, respawn;
+ * - older daemon (protocol, or same protocol but an older release): `POST /shutdown`, wait for it to go, respawn;
  * - newer daemon: throw `daemon_newer_than_shim`, never restart it.
  */
 export async function ensureDaemon(opts: EnsureOptions): Promise<Ensured> {
   const { paths, log } = opts;
   const protocol = opts.protocol ?? PROTOCOL;
+  const version = opts.version ?? VERSION;
   const timeout = opts.timeoutMs ?? 10_000;
   const doSpawn = opts.spawn ?? (() => spawnDaemonProcess(paths));
   const probeLive = async (): Promise<Probe | null> => {
@@ -184,8 +203,14 @@ export async function ensureDaemon(opts: EnsureOptions): Promise<Ensured> {
     });
   }
 
-  if (probe.health.protocol < protocol) {
-    log.info('shim.version_skew', { daemon: probe.health.protocol, shim: protocol, action: 'restart' });
+  const olderRelease = isOlderRelease(probe.health.version, version);
+  if (probe.health.protocol < protocol || olderRelease) {
+    log.info('shim.version_skew', {
+      daemon: probe.health.protocol,
+      shim: protocol,
+      ...(olderRelease ? { daemonVersion: probe.health.version, shimVersion: version } : {}),
+      action: 'restart',
+    });
     try {
       await callDaemon(probe.state, 'POST', '/shutdown', { protocol });
     } catch {
