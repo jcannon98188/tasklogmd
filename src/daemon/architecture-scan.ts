@@ -195,7 +195,7 @@ export interface ScanResult {
 export const SKIPPED_REASON = 'changed during scan';
 
 /** New files use LF and canonical key order; Description and Responsibilities are written empty. */
-export function renderElement(e: { kind: string; title: string; review: string; parent?: string; uses?: Use[]; code: string[] }, date: string): string {
+export function renderProposedElement(e: { kind: string; title: string; review: string; parent?: string; uses?: Use[]; code: string[] }, date: string): string {
   const lines = ['---', `kind: ${e.kind}`, `title: ${renderString(e.title, 'plain')}`, `review: ${e.review}`];
   if (e.parent !== undefined) lines.push(`parent: ${renderString(e.parent, 'plain')}`);
   if (e.uses && e.uses.length > 0) {
@@ -205,7 +205,7 @@ export function renderElement(e: { kind: string; title: string; review: string; 
       if (u.label !== undefined) lines.push(`    label: ${renderString(u.label, 'plain')}`);
     }
   }
-  lines.push('code:', ...e.code.map((c) => `  - ${renderString(c, 'plain')}`));
+  lines.push(`code: [${e.code.map((c) => renderString(c, 'plain')).join(', ')}]`);
   lines.push(`created: ${date}`, `updated: ${date}`, '---', '', '## Description', '', '## Responsibilities', '');
   return lines.join('\n');
 }
@@ -263,7 +263,7 @@ function toResult(comp: ScanComputation, dryRun: boolean): {
       id: `${ARCHITECTURE_DIR}/${slug}`,
       slug,
       body: { ...c, parent, uses } as Candidate,
-      text: (date: string) => renderElement({ kind: c.kind, title: c.title, review: 'proposed', parent, uses, code: c.code }, date),
+      text: (date: string) => renderProposedElement({ kind: c.kind, title: c.title, review: 'proposed', parent, uses, code: c.code }, date),
     };
   });
 
@@ -293,7 +293,7 @@ function toResult(comp: ScanComputation, dryRun: boolean): {
     skipped: [],
     findings: p.findings.map((f) => ({
       category: f.category,
-      ...(f.element !== undefined ? { id: `${ARCHITECTURE_DIR}/${f.element}` } : {}),
+      ...(f.element !== undefined ? { id: f.element } : {}),
       ...(f.path !== undefined ? { path: f.path } : {}),
       detail: f.message,
     })),

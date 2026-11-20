@@ -95,7 +95,7 @@ describe('scan_architecture outcomes', () => {
       ['architecture/b', 'component', 'app', ['src/b']],
     ]);
     expect(first.updated).toEqual([]);
-    expect(el(root, 'a')).toMatch(/^---\nkind: component\ntitle: a\nreview: proposed\nparent: app\ncode:\n {2}- src\/a\ncreated: \d{4}-\d\d-\d\d\nupdated: \d{4}-\d\d-\d\d\n---\n\n## Description\n\n## Responsibilities\n$/);
+    expect(el(root, 'a')).toMatch(/^---\nkind: component\ntitle: a\nreview: proposed\nparent: app\ncode: \[src\/a\]\ncreated: \d{4}-\d\d-\d\d\nupdated: \d{4}-\d\d-\d\d\n---\n\n## Description\n\n## Responsibilities\n$/);
 
     const before = Object.fromEntries(elementFiles(root).map((n) => [n, read(root, `.tasklog/architecture/${n}`)]));
     const second = await scan(root);
@@ -132,8 +132,8 @@ describe('scan_architecture outcomes', () => {
     expect(text).toContain('review: accepted');
     expect(text).toContain('Hand written.');
     expect(text).toContain('## Interface\n\nCall x().');
-    expect(text).toMatch(/code:\n {2}- src\/a\n {2}- scripts\/extra\n/);
-    expect(r.findings).toContainEqual({ category: 'missing-path', id: 'architecture/a', path: 'scripts/extra', detail: expect.any(String) });
+    expect(text).toMatch(/code: \[src\/a, scripts\/extra\]/);
+    expect(r.findings).toContainEqual({ category: 'missing-path', id: 'a', path: 'scripts/extra', detail: expect.any(String) });
     // Second scan: nothing more to do.
     const again = await scan(root);
     expect(again.updated).toEqual([]);
@@ -149,7 +149,7 @@ describe('scan_architecture outcomes', () => {
     const r = await scan(root);
     expect(elementFiles(root)).toContain('b.md');
     expect(r.created.map((c: any) => c.id)).toEqual(['architecture/renamed-b']);
-    expect(r.findings.map((f: any) => [f.category, f.id, f.path])).toContainEqual(['missing-path', 'architecture/b', 'src/b']);
+    expect(r.findings.map((f: any) => [f.category, f.id, f.path])).toContainEqual(['missing-path', 'b', 'src/b']);
   });
 
   it('re-proposes a hand-deleted element, unless the ignore file lists it', async () => {
@@ -279,7 +279,7 @@ describe('concurrency and stale hashes', () => {
     expect(r.skipped).toEqual([{ id: 'architecture/a', reason: 'changed during scan' }]);
     expect(r.updated).toEqual([]);
     expect(el(root, 'a')).toContain('Curator was here.');
-    expect(el(root, 'a')).toMatch(/code:\n {2}- src\/a\/x\.ts\n/);
+    expect(el(root, 'a')).toMatch(/code: \[src\/a\/x\.ts\]/);
     expect(fs.readdirSync(archDir(root)).filter((n) => n.includes('tmp'))).toEqual([]);
     const rerun = await scan(root);
     expect(rerun.skipped).toEqual([]);

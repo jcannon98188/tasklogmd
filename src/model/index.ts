@@ -8,6 +8,7 @@ import type { Logger } from '../log.ts';
 import { isElementKind, KINDS, STATUSES, TYPES, type FmValue, type Kind, type LayoutKind, type ParseResult, type ValidParse } from './parse.ts';
 import { makeSnippet, matchItem, parseQuery, type SearchField } from './search.ts';
 import type { ParsedItemStore } from './store.ts';
+import type { Element as ArchElement } from '../architecture/types.ts';
 
 export const TASKLOG_DIR = '.tasklog';
 /** The reserved effort name: `.tasklog/architecture/` holds elements, never an effort's map, spec or tickets. */
@@ -437,6 +438,26 @@ export class WorkspaceIndex {
       flags: [],
       parse: p,
     };
+  }
+
+  /** Every valid element (container or component) in slug order; invalid element files are skipped. */
+  elements(): ArchElement[] {
+    const out: ArchElement[] = [];
+    for (const e of this.byPath.values()) {
+      if (e.layoutKind !== 'element' || !e.parse.ok) continue;
+      const f = e.parse.fields;
+      if (!isElementKind(f.kind)) continue;
+      out.push({
+        slug: e.id.slice(ARCHITECTURE_DIR.length + 1),
+        kind: f.kind,
+        title: f.title,
+        review: f.review ?? 'proposed',
+        ...(f.parent !== undefined ? { parent: f.parent } : {}),
+        uses: (f.uses ?? []).map((u) => ({ ...u })),
+        code: [...(f.code ?? [])],
+      });
+    }
+    return out.sort((a, b) => (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0));
   }
 
   /** Slugs in a ticket's `components` that name no element file. Dangling names are warnings, never invalid tickets. */
