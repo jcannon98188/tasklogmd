@@ -1,0 +1,10 @@
+{
+  "candidates": [],
+  "ignored": [],
+  "unowned": [
+    ".",
+    "build",
+    "scripts",
+    "spikes"
+  ]
+}

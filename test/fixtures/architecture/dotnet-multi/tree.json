@@ -1,0 +1,20 @@
+{
+  "_comment": "rpgengine shape: test csproj ignored, Cargo [workspace] not a container, component-less analyzers project, ProjectReference seeding",
+  "files": {
+    "src/Waymark.Foundation/Waymark.Foundation.csproj": "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>",
+    "src/Waymark.Foundation/Entry.cs": "",
+    "src/Waymark.Foundation/Memory/Arena.cs": "",
+    "src/Waymark.Foundation/Threading/Pool.cs": "",
+    "src/Waymark.Foundation/Config/Settings.cs": "",
+    "src/Waymark.Analyzers/Waymark.Analyzers.csproj": "<Project Sdk=\"Microsoft.NET.Sdk\"><ItemGroup><ProjectReference Include=\"..\\Waymark.Foundation\\Waymark.Foundation.csproj\" /></ItemGroup></Project>",
+    "src/Waymark.Analyzers/Analyzer.cs": "",
+    "src/Waymark.Abi.Common/Waymark.Abi.Common.csproj": "<Project Sdk=\"Microsoft.NET.Sdk\"><ItemGroup><ProjectReference Include=\"..\\Waymark.Foundation\\Waymark.Foundation.csproj\" /></ItemGroup></Project>",
+    "src/Waymark.Abi.Common/Abi.cs": "",
+    "tests/Waymark.Foundation.Tests/Waymark.Foundation.Tests.csproj": "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><IsTestProject>true</IsTestProject></PropertyGroup></Project>",
+    "tests/Waymark.Foundation.Tests/ArenaTests.cs": "",
+    "native/Cargo.toml": "[workspace]\nmembers = [\"engine\"]\n",
+    "native/engine/lib.rs": "",
+    "build/gen.mjs": "",
+    "Waymark.sln": ""
+  }
+}
