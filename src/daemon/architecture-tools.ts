@@ -21,7 +21,7 @@ export function registerArchitectureTools(server: McpServer, deps: McpDeps, ctx:
     'architecture',
     {
       description:
-        'The architecture as a compact tree: `{containers: [{id, title, review, uses, tickets: {open, claimed}, children}], findings, warnings}`. Counts are direct (a ticket linking a component counts for it, not its container) and cover open and claimed tickets only; there are no bodies or `code` lists, so read an element with get_item. `root` (a bare slug) returns one container\'s subtree, or a component under its parent; `depth: 0` leaves out children. `findings` is drift (missing owned paths, unowned code), computed on each call and never fixed; `drift: false` skips it. `warnings` list dangling references.',
+        'The architecture as a compact tree: `{containers: [{id, title, review, uses, tickets: {open, claimed}, children}], findings, warnings}`. Counts are direct (a ticket linking a component counts for it, not its container) and cover open and claimed tickets only; there are no bodies or `code` lists, so read an element with get_item. `root` (a bare slug) returns one container\'s subtree, or a component under its parent; `depth: 0` leaves out children. `findings` is drift (missing owned paths, unowned code), computed on each call and never fixed; `drift: false` skips it. `warnings` list dangling references; to curate elements with `review: proposed`, follow the workflow in scan_architecture.',
       inputSchema: {
         root: z.string().optional().describe('Bare element slug, not the Item ID. A container gives its subtree; a component gives its parent as a stub with only that child.'),
         depth: z.number().optional().describe('0 for containers only; 1 (default) includes components.'),
@@ -61,7 +61,7 @@ export function registerArchitectureTools(server: McpServer, deps: McpDeps, ctx:
     'create_element',
     {
       description:
-        'Create an architecture element by hand: a `container` (a buildable unit such as a package or project) or a `component` (a feature or layer inside a container, with `parent` set to that container\'s slug). It starts `review: accepted` with empty `## Description` and `## Responsibilities` to fill with replace_section. `code` lists the repo-relative directories or files it owns (roots, never globs; "." is the workspace root). The slug is made from the title and is permanent. Returns `{id, hash, path, slug}`.',
+        'Create an architecture element by hand: a `container` (a buildable unit such as a package or project) or a `component` (a feature or layer inside a container, with `parent` set to that container\'s slug). It starts `review: accepted` with empty `## Description` and `## Responsibilities` to fill with replace_section. `code` lists the repo-relative directories or files it owns (roots, never globs; "." is the workspace root). The slug is made from the title and is permanent. Returns `{id, hash, path, slug}`; for what to write next, follow the workflow in scan_architecture.',
       inputSchema: {
         kind: z.enum(['container', 'component']),
         title: z.string().describe('Human title; the slug (kebab-case) is derived from it and never changes.'),
@@ -77,7 +77,7 @@ export function registerArchitectureTools(server: McpServer, deps: McpDeps, ctx:
     'scan_architecture',
     {
       description:
-        'Propose and refresh architecture elements from the repo: one container per buildable manifest and one component per source directory, matched to existing elements by the files they own. New elements are written `proposed` with empty Description and Responsibilities; a rescan changes only owned `code` roots and never touches curated content, review state or other elements. Drift (missing paths, unowned code, renames) is reported in `findings`, never fixed. With `dry_run: true` it reports the same result and writes nothing.',
+        'Propose and refresh architecture elements from the repo: one container per buildable manifest and one component per source directory, matched to existing elements by the files they own. New elements are written `proposed` with empty Description and Responsibilities; a rescan changes only owned `code` roots and never touches curated content, review state or other elements. Drift (missing paths, unowned code, renames) is reported in `findings`, never fixed. With `dry_run: true` it reports the same result and writes nothing. After a real scan, curate: call `architecture` and list elements with `review: proposed`, write `## Description` and `## Responsibilities` with replace_section, set `review: accepted` with set_fields, link tickets through `components`, never edit element files by hand and never delete elements, and raise unowned directories in `findings` with the user.',
       inputSchema: {
         dry_run: z.boolean().optional().describe('true: compute and report the result without writing any file.'),
         workspace: workspaceArg,

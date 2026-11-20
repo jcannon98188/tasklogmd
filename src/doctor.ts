@@ -80,6 +80,21 @@ function lastProblemLines(file: string, n: number): string[] {
   }
 }
 
+/** One informational line (never a failure): elements exist but the repo's tracker doc lacks the Architecture section. */
+function architectureGuidanceCheck(root: string, counts: { containers?: number; components?: number } | undefined): DoctorCheck {
+  const elements = (counts?.containers ?? 0) + (counts?.components ?? 0);
+  const name = 'architecture-guidance';
+  if (elements === 0) return { name, ok: true, detail: 'no architecture elements', fix: '' };
+  let doc = '';
+  try {
+    doc = fs.readFileSync(path.join(root, 'docs', 'agents', 'issue-tracker.md'), 'utf8');
+  } catch {
+    /* absent counts as no section */
+  }
+  if (/^## Architecture[ \t]*\r?$/m.test(doc)) return { name, ok: true, detail: 'docs/agents/issue-tracker.md has an Architecture section', fix: '' };
+  return { name, ok: true, detail: 'warning: architecture elements exist but docs/agents/issue-tracker.md has no "## Architecture" section; refresh it from the TaskLog setup template so agents learn the tools.', fix: '' };
+}
+
 /** Full doctor (spec section 8). Starts the daemon if needed; `status` is the non-starting probe. */
 export async function runDoctor(opts: DoctorOptions): Promise<DoctorReport> {
   const { paths } = opts;
@@ -174,6 +189,7 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorReport> {
       if (r.isError) throw new Error(s.error?.message ?? 'workspace_status failed');
       report.problems = Array.isArray(s.problems) ? s.problems : [];
       report.recent_events = Array.isArray(s.recent_events) ? s.recent_events : [];
+      checks.push(architectureGuidanceCheck(root, s.architecture));
       checks.push({
         name: 'workspace-problems',
         ok: report.problems.length === 0,

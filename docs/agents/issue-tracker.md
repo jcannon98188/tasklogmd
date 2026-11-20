@@ -55,3 +55,17 @@ Used by `/wayfinder`.
 - **Out of scope**: `close` with a `reason` and an `out_of_scope_gist`; it closes the ticket and adds a line to the map's Out of scope.
 - **Fog**: the map's Not yet specified section. Graduate a patch into tickets with `create_item` and clear it from the section.
 - **Overview**: `overview` for the effort summarises Destination, Decisions so far, in-progress, ready, blocked and drift.
+
+## Architecture
+
+The architecture is a picture of the codebase as elements: containers (runnable units) and components (parts inside them), one markdown file each in the reserved architecture directory. Tools: `architecture` (compact tree with `review`, ticket counts and drift findings), `owners` (which elements own given paths), `scan_architecture` (propose elements from manifests and directories) and `create_element` (add one by hand).
+
+**After a scan:** (1) call `architecture` and list elements with `review: proposed`; (2) write `## Description` and `## Responsibilities` with `replace_section`; (3) `set_fields` `review: accepted`; (4) link tickets (below). Never edit element files by hand and never delete elements. Raise unowned directories from `findings` with the user.
+
+**Linking tickets:** when creating or triaging a ticket that names files, call `owners` with those paths, then `set_fields` `components` to the returned slugs. Skip when the architecture is empty or every path is `unowned`.
+
+**Reviewing a change:** pass the changed paths to `owners`, read each owner's `## Responsibilities` and `## Interface` with `get_item` and `sections`, and flag changes that fall outside them.
+
+**Body sections** (conventions, never generated, soft cap about 10 lines each): `## Interface` is what a caller must know to use the element; `## Seams` is where its behaviour can be swapped; `## Decisions` is plain links to ADRs.
+
+**Domains:** when `GLOSSARY-MAP.md` exists, use it to find the glossary and ADRs for an element's `code` paths.
