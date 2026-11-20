@@ -36,11 +36,15 @@ Settled in the opening grilling (26 questions, all agreed); tickets must not reo
 - [Agent onboarding for the Architecture](tickets/06-agent-onboarding-for-the-architecture.md): Guidance lives in a new `## Architecture` section of the tracker template plus the three tool descriptions; nothing added to CLAUDE.md/AGENTS.md; setup patch gets a refresh step and `doctor` a warning; `tasklog scan` prints a next-step line; no new tools.
 - [Owner lookup by file path](tickets/07-owner-lookup-by-file-path.md): New read-only `owners` tool (paths in; owners grouped by element plus `unowned` out) by longest-root match, never writes `components`; shared path normalisation; joins slice 2; Owner added to glossary.
 - [Scoped architecture view](tickets/08-scoped-architecture-view.md): `architecture` gains optional `root: <slug>` and `depth` (0 or 1): container root returns its subtree, component root returns a parent stub with that one child; findings and warnings filtered to the subtree, unowned-code dropped; missing slug `not_found`; counts stay direct; joins slice 2.
+- [Hotspots: ranking elements by ticket history](tickets/10-hotspots-ranking-elements-by-ticket-history.md): Post-0.2.0 follow-up: a separate read-only `hotspots` tool ranks elements by direct ticket count across all statuses (per-status breakdown, optional `since` on `updated`, id tie-break, zeros omitted unless `include_zero`, `limit` 20); a count is a signal, not a verdict; joins after slice 1.
+- [Domain context link and structured ADR link](tickets/11-domain-context-link-and-structured-adr-link.md): No `context` or `adrs` fields: context is derived from owned code plus GLOSSARY-MAP.md; ADRs are plain markdown links in an optional `## Decisions` body section; nothing validated, scanned or returned.
+- [Interface and Seams body sections](tickets/12-interface-and-seams-body-sections.md): Interface and Seams are a documented convention only (no scan or create_element scaffolding, soft ~10-line cap, not shown by `architecture`, read via get_item sections); documented in the tracker template and README; two preservation tests; no glossary terms.
 
 ## Not yet specified
 
 - **Derived relationships**: Groma infers component-to-component relationships from symbols (supplied callbacks, HTTP calls). Ours seeds `uses` only between containers and otherwise relies on curation. Once symbol analysis and per-language plugins exist, decide what is derived, how derived rows are kept apart from authored ones, and how a rescan replaces only the derived part. Revisit after 0.2.0.
 - **Curation helpers**: rename and combine of elements (Groma has `edit --id` and `--combine`; we rely on hand edits and rescan). Revisit if curation proves painful in real use.
+- **ADR reverse lookup**: which elements does an ADR affect? ADRs stay plain markdown links in an element's optional `## Decisions` section, so this needs a structured link. Revisit only if real use asks for it.
 
 ## Out of scope
 
