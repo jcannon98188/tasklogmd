@@ -78,7 +78,28 @@ function sameSet(a: string[], b: string[]): boolean {
 export function plan(input: PlanInput): Plan {
   const { existing, candidates, files } = input;
   const isUserIgnored = userIgnoreMatcher(input.userIgnore ?? []);
-  const owned = ownedFiles(existing, files);
+  // Containers are matched at container level only: components are ignored on both sides. Components keep the
+  // all-elements rule.
+  const allOwned = ownedFiles(existing, files);
+  const containerOwned = ownedFiles(
+    existing.filter((e) => e.kind === 'container'),
+    files,
+  );
+  const ownedOf = (e: Element): Set<string> => (e.kind === 'container' ? containerOwned : allOwned).get(e.slug)!;
+  const candFiles = new Map<Candidate, string[]>(candidates.map((c) => [c, c.files]));
+  const candContainers = candidates.filter((c) => c.kind === 'container');
+  if (candContainers.length > 0) {
+    const asElements: Element[] = candContainers.map((c, i) => ({
+      slug: String(i),
+      kind: 'container',
+      title: c.title,
+      review: 'proposed',
+      uses: [],
+      code: c.code,
+    }));
+    const byCand = ownedFiles(asElements, files);
+    candContainers.forEach((c, i) => candFiles.set(c, [...byCand.get(String(i))!].sort()));
+  }
 
   // 1. Candidate/element pairs that pass the 50% rule on both sides, same kind only.
   interface Pair {
@@ -90,11 +111,12 @@ export function plan(input: PlanInput): Plan {
   candidates.forEach((c, ci) => {
     for (const el of existing) {
       if (el.kind !== c.kind) continue;
-      const own = owned.get(el.slug)!;
+      const own = ownedOf(el);
+      const cfiles = candFiles.get(c)!;
       let shared = 0;
-      for (const f of c.files) if (own.has(f)) shared++;
+      for (const f of cfiles) if (own.has(f)) shared++;
       if (shared === 0) continue;
-      if (shared * 2 >= c.files.length && shared * 2 >= own.size) pairs.push({ ci, el, shared });
+      if (shared * 2 >= cfiles.length && shared * 2 >= own.size) pairs.push({ ci, el, shared });
     }
   });
 
@@ -141,7 +163,7 @@ export function plan(input: PlanInput): Plan {
       else created.push(c);
       return;
     }
-    const sharedFiles = c.files.filter((f) => owned.get(el.slug)!.has(f));
+    const sharedFiles = candFiles.get(c)!.filter((f) => ownedOf(el).has(f));
     const code: string[] = [];
     let inserted = false;
     for (const r of el.code) {

@@ -155,6 +155,54 @@ describe('plan: matching', () => {
   });
 });
 
+describe('plan: container matching ignores components', () => {
+  // The candidate container lists only its own files (components' files excluded); the existing container must be
+  // compared the same way, so hand-deleted or newly appeared components do not push it under the 50% rule.
+  const rootFiles = ['root.ts'];
+  const dirs = (names: string[]) => names.map((n) => ({ n, fs: nfiles(`src/${n}`, 3) }));
+  const compCands = (names: string[]) =>
+    dirs(names).map(({ n, fs }) => cand(n, 'component', [`src/${n}`], fs, { parent: 'app' }));
+
+  it('two or more components hand-deleted from a container do not re-propose the container', () => {
+    const all = [...rootFiles, ...dirs(['a', 'b', 'c']).flatMap((d) => d.fs)];
+    const container = cand('app', 'container', ['.'], rootFiles);
+    const existing = [el('app', 'container', ['.']), el('a', 'component', ['src/a'], { parent: 'app' })];
+    const out = run({ existing, candidates: [container, ...compCands(['a', 'b', 'c'])], files: all });
+    expect(out.created.map((c) => c.slug)).toEqual(['b', 'c']);
+    expect(out.updated).toEqual([]);
+    expect(out.unchanged).toEqual(['a', 'app']);
+  });
+
+  it('many new component directories at once do not re-propose the container', () => {
+    const all = [...rootFiles, ...dirs(['a', 'b', 'c', 'd']).flatMap((d) => d.fs)];
+    const container = cand('app', 'container', ['.'], rootFiles);
+    const out = run({ existing: [el('app', 'container', ['.'])], candidates: [container, ...compCands(['a', 'b', 'c', 'd'])], files: all });
+    expect(out.created.map((c) => c.slug)).toEqual(['a', 'b', 'c', 'd']);
+    expect(out.unchanged).toEqual(['app']);
+  });
+
+  it('an old container owning `.` stays matched across repeated scans', () => {
+    const all = [...rootFiles, ...dirs(['a', 'b', 'c']).flatMap((d) => d.fs)];
+    const container = cand('app', 'container', ['.'], rootFiles);
+    const cands = [container, ...compCands(['a', 'b', 'c'])];
+    let existing = [el('old-app', 'container', ['.']), el('a', 'component', ['src/a'], { parent: 'old-app' })];
+    for (let scan = 0; scan < 3; scan++) {
+      const out = run({ existing, candidates: cands, files: all });
+      expect(out.created.filter((c) => c.kind === 'container')).toEqual([]);
+      existing = [...existing, ...out.created.map((c) => el(c.slug, c.kind, c.code, { parent: 'old-app' }))];
+    }
+  });
+
+  it('a nested container still takes its own files out of the outer container', () => {
+    const inner = nfiles('packages/lib', 3);
+    const all = [...rootFiles, ...inner];
+    const outer = cand('app', 'container', ['.'], rootFiles);
+    const lib = cand('lib', 'container', ['packages/lib'], inner);
+    const out = run({ existing: [el('app', 'container', ['.']), el('lib', 'container', ['packages/lib'])], candidates: [outer, lib], files: all });
+    expect(out).toEqual({ ...EMPTY, unchanged: ['app', 'lib'] });
+  });
+});
+
 describe('plan: merge of roots', () => {
   it('replaces only overlapping roots; hand-added roots stay', () => {
     const e = el('a', 'component', ['src/a', 'notes']);

@@ -168,6 +168,20 @@ describe('scan_architecture outcomes', () => {
     expect(read(root, '.tasklog/architecture/ignore')).toBe('# hand-deleted noise\nsrc/b\n'); // never written by the scan
   });
 
+  it('hand-deleting two components re-proposes only them, never the container, on every later scan', async () => {
+    const root = appWorkspace();
+    await scan(root);
+    fs.unlinkSync(path.join(archDir(root), 'a.md'));
+    fs.unlinkSync(path.join(archDir(root), 'b.md'));
+    const first = await scan(root);
+    expect(first.created.map((c: any) => c.id)).toEqual(['architecture/a', 'architecture/b']);
+    const second = await scan(root);
+    expect(second.created).toEqual([]);
+    const third = await scan(root);
+    expect(third.created).toEqual([]);
+    expect(elementFiles(root)).toEqual(['a.md', 'app.md', 'b.md']);
+  });
+
   it('a new candidate whose slug collides with an unrelated element gets a numeric suffix', async () => {
     const root = appWorkspace();
     put(root, '.tasklog/architecture/a.md', '---\nkind: component\ntitle: Elsewhere\nreview: accepted\ncode:\n  - lib/other\n---\n\n## Description\n\n## Responsibilities\n');
