@@ -3,7 +3,7 @@ kind: ticket
 title: "Slice 7c: Release 0.2.0"
 status: open
 type: task
-blocked_by: [7, 8]
+blocked_by: [7, 8, 11]
 tags: [ready-for-human]
 created: 2026-11-20
 updated: 2026-11-20
