@@ -75,6 +75,9 @@ A part inside a container, or inside another component.
 **Owned code**:
 The repo paths an element claims as its own. A scan may rewrite them; it never changes anything else about the element.
 
+**Owner**:
+The element that owns a given file: the one whose owned code has the longest matching root. A component's root beats its container's.
+
 **Review**:
 Whether an element has been confirmed. Proposed means a scan found it and no one has checked it; accepted means a person or agent confirmed it. It is not a status.
 
@@ -86,6 +89,9 @@ A mismatch between the architecture and the code: an element owns a path that no
 
 **Touched component**:
 An element that a ticket says it affects. The ticket owns this link.
+
+**Hotspot**:
+An element that many tickets link to. It is a prompt to look closer, not a verdict that something is wrong.
 
 **Build spec**:
 The destination of this effort: a document detailed enough to be turned into implementation tickets.

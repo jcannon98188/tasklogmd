@@ -39,6 +39,7 @@ Files in this folder:
 5. **Write `docs/agents/triage-labels.md`** from `triage-labels-tasklog.md`.
 6. **Initialise** if `.tasklog/` is missing: the `init_workspace` tool, or `tasklog init`.
 7. **Verify.** Call `workspace_status` over MCP (needs a restarted session if just registered), or else run `tasklog doctor`. Report the result (state, counts, problems). A failure is reported, not hidden.
+8. **Refresh an existing tracker doc** (repos set up before the Architecture feature). If `docs/agents/issue-tracker.md` has no `## Architecture` section, compare it with the previous template. If it is unmodified, re-copy `issue-tracker-tasklog.md` over it. If it has local edits, print the template's `## Architecture` section for the human to merge by hand and do not overwrite the file. `tasklog doctor` warns, in one line, when elements exist but the section is missing.
 
 ## Migration prompt (repo has `.scratch/` efforts)
 
