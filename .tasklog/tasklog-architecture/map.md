@@ -32,10 +32,11 @@ Settled in the opening grilling (26 questions, all agreed); tickets must not reo
 - [Scan match and merge algorithm](tickets/02-scan-match-and-merge-algorithm.md): Match by owned files, same kind, one-to-one, at least 50% overlap of both sides; no rename guessing; scan never deletes or changes review; user ignore file stops re-proposal; compute first, write per element with hashes.
 - [File and tool result formats](tickets/03-file-and-tool-result-formats.md): Flat `<slug>.md` elements with bare-slug references and root-only `code` paths; `components` on tickets (unchecked, `dangling` flag + warnings); exact shapes for `create_element`, `scan_architecture` (dry_run, created/updated/findings/ignored), `architecture` (nested tree, direct open/claimed counts, drift + warnings), `workspace_status` counts, no new error codes, `tasklog scan [--dry-run] [--json]`.
 - [Test strategy for the Architecture feature](tickets/04-test-strategy-for-the-architecture-feature.md): Four existing layers extended: pure unit tests for detection and match/merge (table-driven), integration for apply/concurrency/drift/tree, thin CLI and e2e; synthetic fixtures with golden scan JSON; Windows path/CRLF cases; manual real-repo dry-run before 0.2.0.
+- [Build order, package layout and release steps for 0.2.0](tickets/05-build-order-package-layout-and-release-steps-for-0-2-0.md): New `src/architecture/` (pure detect/plan/manifests/types), model extended in `src/model/`, apply and tools in `src/daemon/architecture-tools.ts`; seven slices with 1 and 3 parallel, critical path 1,4,5,6,7; manual real-repo check is a HITL task before the 0.2.0 bump; slices go in the spec, tickets created later.
 
 ## Not yet specified
 
-- Assembling the final build spec (the effort's `spec` item) once the tickets above are resolved: package layout, release steps for 0.2.0, and ordering of the build.
+_none: the last patch graduated into Build order, package layout and release steps for 0.2.0._
 
 ## Out of scope
 
