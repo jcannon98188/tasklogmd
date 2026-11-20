@@ -29,6 +29,7 @@ Settled in the opening grilling (26 questions, all agreed); tickets must not reo
 ## Decisions so far
 
 - [Structural detection heuristics](tickets/01-structural-detection-heuristics.md): Containers = one per named buildable manifest (workspace members only when declared; Angular/Nx descriptors win); components = depth-1 source dirs, descending once through grouping dirs; tests, fixtures, templates and tooling dirs ignored; manifest-less code dirs reported as unowned; `uses` seeded on new containers only.
+- [Scan match and merge algorithm](tickets/02-scan-match-and-merge-algorithm.md): Match by owned files, same kind, one-to-one, at least 50% overlap of both sides; no rename guessing; scan never deletes or changes review; user ignore file stops re-proposal; compute first, write per element with hashes.
 
 ## Not yet specified
 
