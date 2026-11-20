@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { TaskLogError } from '../errors.ts';
+import type { ElementKind } from '../architecture/types.ts';
 import type { Logger } from '../log.ts';
 import { applyEdit, normalizeCode, type Edit, type EditOp } from '../model/edit.ts';
 import { ARCHITECTURE_DIR, TASKLOG_DIR, identify, type WorkspaceIndex } from '../model/index.ts';
@@ -261,7 +262,7 @@ export class WriteService {
    */
   async createElement(
     root: string,
-    input: { kind: string; title: string; parent?: string; code?: string[] },
+    input: { kind: ElementKind; title: string; parent?: string; code?: string[] },
   ): Promise<{ id: string; hash: string; path: string; slug: string }> {
     if (input.kind !== 'container' && input.kind !== 'component') throw new TaskLogError('bad_request', { message: 'kind must be "container" or "component".' });
     const kind = input.kind;

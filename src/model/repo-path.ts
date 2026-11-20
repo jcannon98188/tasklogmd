@@ -1,4 +1,4 @@
-// Repo-relative path normalisation shared by element `code` roots and (later) the `owners` tool. Pure: no
+// Repo-relative path normalisation shared by element `code` roots and the `owners` tool. Pure: no
 // filesystem, so it never checks that a path exists and never resolves symlinks. Case is always preserved.
 
 const isAbsolute = (p: string): boolean => p.startsWith('/') || /^[A-Za-z]:\//.test(p);

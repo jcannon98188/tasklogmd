@@ -265,14 +265,12 @@ function normalizeComponents(list: string[]): string[] {
   return out;
 }
 
-const GLOB_CHARS = /[*?[\]{}]/;
-
+/** Normalises `code` roots. They are never globs, but real names may contain `[ ] { } * ?` (a `[id]` route directory), so those characters are kept. */
 export function normalizeCode(list: string[]): string[] {
   const out: string[] = [];
   for (const raw of list) {
     const p = normalizeRepoPath(String(raw));
     if (p === null) throw bad(`code entry ${JSON.stringify(raw)} is not a repo-relative path inside the workspace; use paths like "src/daemon" (or "." for the workspace root).`);
-    if (GLOB_CHARS.test(p)) throw bad(`code entry ${JSON.stringify(raw)} contains glob characters; code lists owned roots (directories or files), never globs.`);
     if (!out.includes(p)) out.push(p);
   }
   return out;

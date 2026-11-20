@@ -227,6 +227,23 @@ describe('plan: findings', () => {
     expect(out.findings).toEqual([{ category: 'unowned-code', path: 'tools', message: expect.any(String) }]);
   });
 
+  it('reports a top-level directory only when some of its code is covered by no element root', () => {
+    const owned = run({
+      existing: [el('build', 'component', ['scripts/build'])],
+      candidates: [],
+      files: ['scripts/build/a.ts', 'scripts/build/b.ts'],
+      unowned: ['scripts'],
+    });
+    expect(owned.findings).toEqual([]);
+    const partial = run({
+      existing: [el('build', 'component', ['scripts/build'])],
+      candidates: [],
+      files: ['scripts/build/a.ts', 'scripts/other/b.ts'],
+      unowned: ['scripts'],
+    });
+    expect(partial.findings).toEqual([{ category: 'unowned-code', path: 'scripts', message: expect.any(String) }]);
+  });
+
   it('keeps detection-ignored entries', () => {
     const out = run({
       existing: [],
