@@ -5,15 +5,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { TaskLogError } from '../errors.ts';
 import type { Logger } from '../log.ts';
-import { KINDS, STATUSES, TYPES, type FmValue, type Kind, type ParseResult, type ValidParse } from './parse.ts';
+import { isElementKind, KINDS, STATUSES, TYPES, type FmValue, type Kind, type LayoutKind, type ParseResult, type ValidParse } from './parse.ts';
 import { makeSnippet, matchItem, parseQuery, type SearchField } from './search.ts';
 import type { ParsedItemStore } from './store.ts';
 
 export const TASKLOG_DIR = '.tasklog';
+/** The reserved effort name: `.tasklog/architecture/` holds elements, never an effort's map, spec or tickets. */
+export const ARCHITECTURE_DIR = 'architecture';
 export const DEFAULT_LIMIT = 50;
 export const MAX_LIMIT = 200;
 
-export type ItemFlag = 'invalid' | 'conflicted';
+export type ItemFlag = 'invalid' | 'conflicted' | 'dangling';
 
 /** One indexed file. `parse` is the shared, immutable store result for `hash`. */
 export interface IndexEntry {
@@ -22,8 +24,8 @@ export interface IndexEntry {
   /** Item ID derived from the path: `effort/NN`, `effort/map` or `effort/spec`. */
   id: string;
   effort: string;
-  /** Kind implied by the path (map.md, spec.md, tickets/). */
-  layoutKind: Kind;
+  /** Kind implied by the path (map.md, spec.md, tickets/, or `element` under architecture/). */
+  layoutKind: LayoutKind;
   /** Ticket number, for tickets. */
   number?: number;
   hash: string;
@@ -37,6 +39,8 @@ export interface IndexEntry {
 export interface ListQuery {
   effort?: string;
   kind?: Kind;
+  /** Tickets linked to any of these element slugs (compared lowercased). */
+  components?: string[];
   status?: string;
   type?: string;
   tags_all?: string[];
@@ -114,6 +118,21 @@ export interface Counts {
   by_status: Record<string, number>;
 }
 
+export interface ArchitectureCounts {
+  containers: number;
+  components: number;
+  proposed: number;
+  accepted: number;
+  /** Dangling `components` references: one per (ticket, unknown slug) pair. */
+  warnings: number;
+}
+
+export interface DanglingComponent {
+  /** The ticket's Item ID. */
+  id: string;
+  slug: string;
+}
+
 export const pad = (n: number): string => String(n).padStart(2, '0');
 
 /** Normalises an Item ID so `eff/5` and `eff/05` are the same item: numbers are zero-padded to two digits. */
@@ -127,10 +146,14 @@ export function normalizeId(id: string): string {
 }
 
 /** Maps a path relative to `.tasklog/` (forward slashes) to its identity, or null when it is not an item file. */
-export function identify(relToTasklog: string): { effort: string; id: string; layoutKind: Kind; number?: number } | null {
+export function identify(relToTasklog: string): { effort: string; id: string; layoutKind: LayoutKind; number?: number } | null {
   const parts = relToTasklog.split('/');
   const effort = parts[0];
   if (!effort || effort.startsWith('.')) return null;
+  if (effort === ARCHITECTURE_DIR) {
+    const m = parts.length === 2 ? /^([a-z0-9][a-z0-9-]*)\.md$/.exec(parts[1]!) : null;
+    return m ? { effort, id: `${effort}/${m[1]}`, layoutKind: 'element' } : null;
+  }
   if (parts.length === 2 && parts[1] === 'map.md') return { effort, id: `${effort}/map`, layoutKind: 'map' };
   if (parts.length === 2 && parts[1] === 'spec.md') return { effort, id: `${effort}/spec`, layoutKind: 'spec' };
   if (parts.length === 3 && parts[1] === 'tickets') {
@@ -145,16 +168,18 @@ export function identify(relToTasklog: string): { effort: string; id: string; la
  * `tickets/`, say) the entry is invalid, so tools that need a `ticket` never see it. The shared store result is
  * untouched: only this path's entry carries the invalid view.
  */
-function disagreesWithLayout(parse: ParseResult, layoutKind: Kind): ParseResult {
-  if (!parse.ok || parse.fields.kind === layoutKind) return parse;
-  const where = layoutKind === 'ticket' ? 'under tickets/' : `as ${layoutKind}.md`;
+function disagreesWithLayout(parse: ParseResult, layoutKind: LayoutKind): ParseResult {
+  if (!parse.ok) return parse;
+  if (layoutKind === 'element' ? isElementKind(parse.fields.kind) : parse.fields.kind === layoutKind) return parse;
+  const where = layoutKind === 'ticket' ? 'under tickets/' : layoutKind === 'element' ? 'under architecture/' : `as ${layoutKind}.md`;
+  const want = layoutKind === 'element' ? 'container or component' : layoutKind;
   return {
     ok: false,
     hash: parse.hash,
     bom: parse.bom,
     eol: parse.eol,
     text: parse.text,
-    error: `the file is ${where} but its frontmatter says "kind: ${parse.fields.kind}"; set kind to ${layoutKind} or move the file`,
+    error: `the file is ${where} but its frontmatter says "kind: ${parse.fields.kind}"; set kind to ${want} or move the file`,
   };
 }
 
@@ -167,7 +192,7 @@ export function resolveBlockers(e: IndexEntry): string[] {
   });
 }
 
-const kindRank = (e: IndexEntry): number => (e.layoutKind === 'map' ? -2 : e.layoutKind === 'spec' ? -1 : (e.number ?? 0));
+const kindRank = (e: IndexEntry): number => (e.layoutKind === 'map' ? -2 : e.layoutKind === 'spec' ? -1 : (e.number ?? 0)); // elements have no number: they sort by path
 
 function compareEntries(a: IndexEntry, b: IndexEntry): number {
   if (a.effort !== b.effort) return a.effort < b.effort ? -1 : 1;
@@ -371,6 +396,7 @@ export class WorkspaceIndex {
     const f: ItemFlag[] = [];
     if (!e.parse.ok) f.push('invalid');
     if (this.isConflicted(e)) f.push('conflicted');
+    if (this.danglingSlugs(e).length > 0) f.push('dangling');
     return f;
   }
 
@@ -413,13 +439,40 @@ export class WorkspaceIndex {
     };
   }
 
-  private toListed(e: IndexEntry): ListedItem {
+  /** Slugs in a ticket's `components` that name no element file. Dangling names are warnings, never invalid tickets. */
+  private danglingSlugs(e: IndexEntry): string[] {
+    if (!e.parse.ok || e.layoutKind !== 'ticket') return [];
+    return (e.parse.fields.components ?? []).filter((slug) => !this.byPath.has(`${TASKLOG_DIR}/${ARCHITECTURE_DIR}/${slug}.md`));
+  }
+
+  /** Every (ticket, slug) pair whose element does not exist, in ticket order. */
+  danglingComponents(): DanglingComponent[] {
+    const out: DanglingComponent[] = [];
+    for (const e of this.entries()) for (const slug of this.danglingSlugs(e)) out.push({ id: e.id, slug });
+    return out;
+  }
+
+  /** Element counts for `workspace_status`; invalid element files are reported under `problems` instead. */
+  architectureCounts(): ArchitectureCounts {
+    const c: ArchitectureCounts = { containers: 0, components: 0, proposed: 0, accepted: 0, warnings: this.danglingComponents().length };
+    for (const e of this.byPath.values()) {
+      if (e.layoutKind !== 'element' || !e.parse.ok) continue;
+      const f = e.parse.fields;
+      if (f.kind === 'container') c.containers++;
+      else c.components++;
+      if (f.review === 'accepted') c.accepted++;
+      else c.proposed++;
+    }
+    return c;
+  }
+
+  private toListed(e: IndexEntry, fallbackKind?: Kind): ListedItem {
     const flags = this.flagsOf(e);
     if (!e.parse.ok) {
       return {
         id: e.id,
         title: e.path.split('/').pop() ?? e.path,
-        kind: e.layoutKind,
+        kind: e.layoutKind === 'element' ? (fallbackKind ?? 'component') : e.layoutKind,
         status: null,
         type: null,
         tags: [],
@@ -437,7 +490,7 @@ export class WorkspaceIndex {
       id: e.id,
       title: f.title,
       kind: f.kind,
-      status: f.status,
+      status: f.status ?? null,
       type: f.type ?? null,
       tags: f.tags,
       claimed_by: f.claimedBy ?? null,
@@ -469,7 +522,8 @@ export class WorkspaceIndex {
     }
     const query = q.text !== undefined ? parseQuery(q.text) : undefined;
     const textQuery = query && !query.empty ? query : undefined;
-    const filterKey = JSON.stringify([q.effort, q.kind, q.status, q.type, all, any, none, q.text ?? null]);
+    const comps = lc(q.components);
+    const filterKey = JSON.stringify([q.effort, q.kind, q.status, q.type, all, any, none, q.text ?? null, comps]);
 
     let offset = 0;
     if (q.cursor !== undefined) {
@@ -490,7 +544,11 @@ export class WorkspaceIndex {
     for (const e of this.entries()) {
       if (q.effort !== undefined && e.effort !== q.effort) continue;
       const f = e.parse.ok ? e.parse.fields : null;
-      if (q.kind !== undefined && (f?.kind ?? e.layoutKind) !== q.kind) continue;
+      if (e.layoutKind === 'element') {
+        // Elements are hidden unless a container or component kind is asked for.
+        if (!isElementKind(q.kind) || (f && f.kind !== q.kind)) continue;
+      } else if (q.kind !== undefined && (f?.kind ?? e.layoutKind) !== q.kind) continue;
+      if (comps.length && !comps.some((c) => f?.components?.includes(c))) continue;
       if (q.status !== undefined && f?.status !== q.status) continue;
       if (q.type !== undefined && f?.type !== q.type) continue;
       const tags = f?.tags ?? [];
@@ -509,7 +567,7 @@ export class WorkspaceIndex {
     const page = matches.slice(offset, offset + limit);
     const next = offset + limit;
     const items = page.map((e) => {
-      const row = this.toListed(e);
+      const row = this.toListed(e, q.kind);
       const m = textMatch.get(e);
       if (m) {
         row.matched_in = m.matched_in;
@@ -529,15 +587,22 @@ export class WorkspaceIndex {
     const by_status: Record<string, number> = {};
     const efforts = new Set<string>();
     let invalid = 0;
+    let elements = 0;
     for (const e of this.byPath.values()) {
+      if (e.layoutKind === 'element') {
+        // Elements are not part of any effort: architectureCounts() counts them; only their parse errors count here.
+        elements++;
+        if (!e.parse.ok) invalid++;
+        continue;
+      }
       efforts.add(e.effort);
       by_kind[e.layoutKind] = (by_kind[e.layoutKind] ?? 0) + 1;
-      if (e.parse.ok) by_status[e.parse.fields.status] = (by_status[e.parse.fields.status] ?? 0) + 1;
-      else invalid++;
+      if (e.parse.ok && e.parse.fields.status) by_status[e.parse.fields.status] = (by_status[e.parse.fields.status] ?? 0) + 1;
+      else if (!e.parse.ok) invalid++;
     }
     let conflicted = 0;
     for (const list of this.byId.values()) if (list.length > 1) conflicted++;
-    return { items: this.byPath.size, invalid, conflicted, efforts: efforts.size, by_kind, by_status };
+    return { items: this.byPath.size - elements, invalid, conflicted, efforts: efforts.size, by_kind, by_status };
   }
 
   /** Current invalid and conflicted items (ticket 11 extends this into `workspace_status.problems[]`). */
@@ -574,6 +639,11 @@ async function listItemFiles(tasklogDir: string): Promise<string[]> {
   };
   for (const eff of await readdir(tasklogDir)) {
     if (!eff.isDirectory() || eff.isSymbolicLink() || eff.name.startsWith('.')) continue;
+    if (eff.name === ARCHITECTURE_DIR) {
+      // Elements are flat: `architecture/<slug>.md`. Nothing else here is an item (the `ignore` file is not markdown).
+      for (const f of await readdir(path.join(tasklogDir, eff.name))) if (f.isFile() && identify(`${eff.name}/${f.name}`)) out.push(`${eff.name}/${f.name}`);
+      continue;
+    }
     for (const f of await readdir(path.join(tasklogDir, eff.name))) {
       if (f.isFile() && (f.name === 'map.md' || f.name === 'spec.md')) out.push(`${eff.name}/${f.name}`);
       else if (f.isDirectory() && !f.isSymbolicLink() && f.name === 'tickets') {

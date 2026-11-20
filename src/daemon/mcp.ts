@@ -91,6 +91,7 @@ export function createMcpServer(deps: McpDeps, ctx: RequestContext): McpServer {
         root,
         state: idx.state,
         counts: idx.counts(),
+        architecture: idx.architectureCounts(),
         problems: idx.problems(),
         recent_events: deps.log.recentProblems(root),
       };
@@ -103,10 +104,11 @@ export function createMcpServer(deps: McpDeps, ctx: RequestContext): McpServer {
     'list_items',
     {
       description:
-        'List items (maps, specs, tickets) in the workspace, ordered by effort then ticket number. Filters AND together. Invalid and conflicted items are included with flags.',
+        'List items (maps, specs, tickets) in the workspace, ordered by effort then ticket number. Filters AND together. Invalid and conflicted items are included with flags. Architecture elements are hidden unless `kind` is container or component. `components` keeps tickets linked to any of the given element slugs. A ticket naming an element that does not exist carries the flag `dangling`.',
       inputSchema: {
         effort: z.string().optional(),
-        kind: z.enum(KINDS).optional(),
+        kind: z.enum(KINDS).optional().describe('map | spec | ticket | container | component. Elements (container, component) are hidden unless asked for here.'),
+        components: z.array(z.string()).optional().describe('Tickets only: keep tickets whose `components` include any of these element slugs.'),
         status: z.enum(STATUSES).optional(),
         type: z.enum(TYPES).optional(),
         tags_all: z.array(z.string()).optional().describe('Items must carry every one of these tags.'),
