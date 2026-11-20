@@ -19,7 +19,7 @@ The daemon's in-memory index of a workspace. It is derived from the files and ca
 TaskLog's own file format for maps, specs and tickets. It is the only format the daemon watches and writes.
 
 **Item**:
-Any file in the native format. Every item has a kind: map, spec or ticket.
+Any file in the native format. Every item has a kind: map, spec, ticket, container or component. Only maps, specs and tickets belong to an effort.
 
 **Effort**:
 A body of work with one map, one spec and many tickets. It is the unit that groups items and the namespace for their IDs.
@@ -59,6 +59,33 @@ A change to one part of a task, such as toggling or rewording a single acceptanc
 
 **Tag**:
 A searchable label on a task. It is a TaskLog addition that works in both layouts.
+
+**Architecture**:
+The picture of what a workspace's codebase is made of, kept as elements. It is separate from every effort, and "map" never refers to it.
+
+**Element**:
+An item that describes one container or component of the architecture. It names the code it owns, which elements it uses and whether anyone has confirmed it.
+
+**Container**:
+A runnable or deployable unit of the codebase, such as the daemon, the shim or the CLI.
+
+**Component**:
+A part inside a container, or inside another component.
+
+**Owned code**:
+The repo paths an element claims as its own. A scan may rewrite them; it never changes anything else about the element.
+
+**Review**:
+Whether an element has been confirmed. Proposed means a scan found it and no one has checked it; accepted means a person or agent confirmed it. It is not a status.
+
+**Scan**:
+A pass over the repo's structure that proposes elements and refreshes the owned code of existing ones. Existing elements are matched by owned code, never by name.
+
+**Drift**:
+A mismatch between the architecture and the code: an element owns a path that no longer exists, or a part of the repo belongs to no element. It is reported, never fixed automatically.
+
+**Touched component**:
+An element that a ticket says it affects. The ticket owns this link.
 
 **Build spec**:
 The destination of this effort: a document detailed enough to be turned into implementation tickets.

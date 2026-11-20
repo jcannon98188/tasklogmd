@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-Issues and specs are local markdown files under `.scratch/`. See `docs/agents/issue-tracker.md`.
+Issues and specs live in tasklog (`.tasklog/`), accessed via the `tasklog` MCP server. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
