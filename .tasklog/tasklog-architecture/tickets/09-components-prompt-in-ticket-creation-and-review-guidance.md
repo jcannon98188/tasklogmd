@@ -3,6 +3,7 @@ kind: ticket
 title: Components prompt in ticket creation and review guidance
 status: open
 type: grilling
+blocked_by: [8, 12]
 created: 2026-11-20
 updated: 2026-11-20
 ---

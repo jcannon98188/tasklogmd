@@ -35,6 +35,7 @@ Settled in the opening grilling (26 questions, all agreed); tickets must not reo
 - [Build order, package layout and release steps for 0.2.0](tickets/05-build-order-package-layout-and-release-steps-for-0-2-0.md): New `src/architecture/` (pure detect/plan/manifests/types), model extended in `src/model/`, apply and tools in `src/daemon/architecture-tools.ts`; seven slices with 1 and 3 parallel, critical path 1,4,5,6,7; manual real-repo check is a HITL task before the 0.2.0 bump; slices go in the spec, tickets created later.
 - [Agent onboarding for the Architecture](tickets/06-agent-onboarding-for-the-architecture.md): Guidance lives in a new `## Architecture` section of the tracker template plus the three tool descriptions; nothing added to CLAUDE.md/AGENTS.md; setup patch gets a refresh step and `doctor` a warning; `tasklog scan` prints a next-step line; no new tools.
 - [Owner lookup by file path](tickets/07-owner-lookup-by-file-path.md): New read-only `owners` tool (paths in; owners grouped by element plus `unowned` out) by longest-root match, never writes `components`; shared path normalisation; joins slice 2; Owner added to glossary.
+- [Scoped architecture view](tickets/08-scoped-architecture-view.md): `architecture` gains optional `root: <slug>` and `depth` (0 or 1): container root returns its subtree, component root returns a parent stub with that one child; findings and warnings filtered to the subtree, unowned-code dropped; missing slug `not_found`; counts stay direct; joins slice 2.
 
 ## Not yet specified
 
