@@ -1,0 +1,102 @@
+{
+  "candidates": [
+    {
+      "kind": "container",
+      "slug": "waymark-abi-common",
+      "title": "Waymark.Abi.Common",
+      "code": [
+        "src/Waymark.Abi.Common"
+      ],
+      "files": [
+        "src/Waymark.Abi.Common/Abi.cs",
+        "src/Waymark.Abi.Common/Waymark.Abi.Common.csproj"
+      ],
+      "uses": [
+        {
+          "to": "waymark-foundation",
+          "label": "project-reference"
+        }
+      ]
+    },
+    {
+      "kind": "container",
+      "slug": "waymark-analyzers",
+      "title": "Waymark.Analyzers",
+      "code": [
+        "src/Waymark.Analyzers"
+      ],
+      "files": [
+        "src/Waymark.Analyzers/Analyzer.cs",
+        "src/Waymark.Analyzers/Waymark.Analyzers.csproj"
+      ],
+      "uses": [
+        {
+          "to": "waymark-foundation",
+          "label": "project-reference"
+        }
+      ]
+    },
+    {
+      "kind": "container",
+      "slug": "waymark-foundation",
+      "title": "Waymark.Foundation",
+      "code": [
+        "src/Waymark.Foundation"
+      ],
+      "files": [
+        "src/Waymark.Foundation/Entry.cs",
+        "src/Waymark.Foundation/Waymark.Foundation.csproj"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "component",
+      "slug": "config",
+      "title": "Config",
+      "parent": "waymark-foundation",
+      "code": [
+        "src/Waymark.Foundation/Config"
+      ],
+      "files": [
+        "src/Waymark.Foundation/Config/Settings.cs"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "component",
+      "slug": "memory",
+      "title": "Memory",
+      "parent": "waymark-foundation",
+      "code": [
+        "src/Waymark.Foundation/Memory"
+      ],
+      "files": [
+        "src/Waymark.Foundation/Memory/Arena.cs"
+      ],
+      "uses": []
+    },
+    {
+      "kind": "component",
+      "slug": "threading",
+      "title": "Threading",
+      "parent": "waymark-foundation",
+      "code": [
+        "src/Waymark.Foundation/Threading"
+      ],
+      "files": [
+        "src/Waymark.Foundation/Threading/Pool.cs"
+      ],
+      "uses": []
+    }
+  ],
+  "ignored": [
+    {
+      "path": "tests/Waymark.Foundation.Tests",
+      "reason": "test"
+    }
+  ],
+  "unowned": [
+    "build",
+    "native"
+  ]
+}

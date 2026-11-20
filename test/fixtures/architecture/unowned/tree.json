@@ -1,0 +1,12 @@
+{
+  "_comment": "Manifest-less code directories are never proposed; they are reported as unowned",
+  "files": {
+    "README.md": "",
+    "scripts/deploy.mjs": "",
+    "build/gen.js": "",
+    "spikes/one/a.ts": "",
+    "spikes/two/b.py": "",
+    "docs/guide.md": "",
+    "tool.go": ""
+  }
+}
