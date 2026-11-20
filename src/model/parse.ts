@@ -7,10 +7,24 @@
 
 import { createHash } from 'node:crypto';
 
-export const KINDS = ['map', 'spec', 'ticket'] as const;
+export const KINDS = ['map', 'spec', 'ticket', 'container', 'component'] as const;
+export const ELEMENT_KINDS = ['container', 'component'] as const;
+export const REVIEWS = ['proposed', 'accepted'] as const;
 export const STATUSES = ['open', 'claimed', 'resolved', 'closed'] as const;
 export const TYPES = ['research', 'prototype', 'grilling', 'task'] as const;
 export type Kind = (typeof KINDS)[number];
+export type ElementKind = (typeof ELEMENT_KINDS)[number];
+export type Review = (typeof REVIEWS)[number];
+/** What a file's path says it is: an effort's map, spec or ticket, or an architecture element (kind comes from frontmatter). */
+export type LayoutKind = 'map' | 'spec' | 'ticket' | 'element';
+
+export const isElementKind = (k: string | undefined): k is ElementKind => k === 'container' || k === 'component';
+
+/** One entry of an element's `uses` list. */
+export interface Use {
+  to: string;
+  label?: string;
+}
 export type Status = (typeof STATUSES)[number];
 export type ItemType = (typeof TYPES)[number];
 
@@ -55,7 +69,8 @@ export type EolStyle = 'lf' | 'crlf' | 'mixed' | 'none';
 export interface ParsedFields {
   kind: Kind;
   title: string;
-  status: Status;
+  /** Absent on elements, which carry `review` instead. */
+  status?: Status;
   type?: ItemType;
   claimedBy?: string;
   /** As written: numbers are same-effort ticket numbers, strings are `effort/NN`. Resolved by the index. */
@@ -63,6 +78,13 @@ export interface ParsedFields {
   tags: string[];
   created?: string;
   updated?: string;
+  /** Tickets only, when the key is present: bare element slugs as written. */
+  components?: string[];
+  /** Elements only. */
+  review?: Review;
+  parent?: string;
+  uses?: Use[];
+  code?: string[];
 }
 
 interface Common {
@@ -252,15 +274,120 @@ function asList(v: FmValue | undefined): FmValue[] {
   return Array.isArray(v) ? v : [v];
 }
 
-function buildFields(map: Map<string, FmValue>): ParsedFields | string {
+/** Splits `text` on top-level commas (outside quotes, braces and brackets). */
+function splitTop(text: string): string[] {
+  const parts: string[] = [];
+  let cur = '';
+  let depth = 0;
+  let quote: string | null = null;
+  for (const c of text) {
+    if (quote) {
+      if (c === quote) quote = null;
+    } else if (c === '"' || c === "'") quote = c;
+    else if (c === '{' || c === '[') depth++;
+    else if (c === '}' || c === ']') depth--;
+    else if (c === ',' && depth === 0) {
+      parts.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += c;
+  }
+  if (cur.trim() !== '') parts.push(cur);
+  return parts.map((p) => p.trim());
+}
+
+function usesFromPairs(pairs: Array<[string, FmValue]>): Use | string {
+  const use: Use = { to: '' };
+  for (const [k, v] of pairs) {
+    if (k === 'to' && typeof v === 'string' && v.trim() !== '') use.to = v.trim();
+    else if (k === 'label' && (typeof v === 'string' || typeof v === 'number')) use.label = String(v);
+    else if (k === 'label' && v === null) continue;
+    else return `"uses" entries are {to, label?}; got ${JSON.stringify(k)}: ${JSON.stringify(v)}`;
+  }
+  return use.to === '' ? '"uses" entries need a non-empty "to" (an element slug)' : use;
+}
+
+function pairOf(text: string): [string, FmValue] | null {
+  const m = /^([A-Za-z_][A-Za-z0-9_-]*):(?:\s+(.*)|\s*)$/.exec(text.trim());
+  return m ? [m[1]!, scalar(stripComment(m[2] ?? ''))] : null;
+}
+
+function flowMap(text: string): Use | string {
+  const t = text.trim();
+  if (!t.startsWith('{') || !t.endsWith('}')) return `"uses" entries are {to, label?}; got ${JSON.stringify(t)}`;
+  const pairs: Array<[string, FmValue]> = [];
+  for (const part of splitTop(t.slice(1, -1))) {
+    const p = pairOf(part);
+    if (!p) return `"uses" entries are {to, label?}; got ${JSON.stringify(t)}`;
+    pairs.push(p);
+  }
+  return usesFromPairs(pairs);
+}
+
+/** Parses the raw text of a `uses:` entry (block list of `to:`/`label:` maps, or an inline list of `{to: x}`). */
+function parseUses(raw: string): Use[] | string {
+  const ls = raw.split(/\r?\n/);
+  const rest = stripComment(ls[0]!.replace(/^uses:/, '')).trim();
+  const out: Use[] = [];
+  const push = (u: Use | string): string | null => {
+    if (typeof u === 'string') return u;
+    out.push(u);
+    return null;
+  };
+  if (rest !== '') {
+    const flat = [rest, ...ls.slice(1).map((l) => stripComment(l).trim())].join(' ').trim();
+    if (flat === 'null' || flat === '~') return [];
+    if (!flat.startsWith('[') || !flat.endsWith(']')) return `"uses" must be a list of {to, label?}; got ${JSON.stringify(flat.slice(0, 60))}`;
+    for (const part of splitTop(flat.slice(1, -1))) {
+      const err = push(part.startsWith('{') ? flowMap(part) : usesFromPairs([['to', scalar(part)]]));
+      if (err) return err;
+    }
+    return out;
+  }
+  let pairs: Array<[string, FmValue]> | null = null;
+  const flush = (): string | null => {
+    if (!pairs) return null;
+    const err = push(usesFromPairs(pairs));
+    pairs = null;
+    return err;
+  };
+  for (const line of ls.slice(1)) {
+    const body = stripComment(line);
+    if (body.trim() === '') continue;
+    const dash = /^\s*-(?:\s+(.*))?$/.exec(body);
+    if (dash) {
+      const err = flush();
+      if (err) return err;
+      const item = (dash[1] ?? '').trim();
+      if (item.startsWith('{')) {
+        const e2 = push(flowMap(item));
+        if (e2) return e2;
+      } else {
+        const p = pairOf(item);
+        // A bare scalar (`- slug`) is read as the target.
+        pairs = p ? [p] : [['to', scalar(item)]];
+      }
+      continue;
+    }
+    const p = pairOf(body);
+    if (!p || !pairs) return `"uses" entries are {to, label?}; could not read ${JSON.stringify(body.trim().slice(0, 60))}`;
+    pairs.push(p);
+  }
+  const err = flush();
+  return err ?? out;
+}
+
+function buildFields(map: Map<string, FmValue>, usesRaw?: string): ParsedFields | string {
   const kind = map.get('kind');
   if (typeof kind !== 'string' || !(KINDS as readonly string[]).includes(kind)) {
     return `"kind" must be one of ${KINDS.join(', ')}; got ${JSON.stringify(kind ?? null)}`;
   }
   const title = map.get('title');
   if (typeof title !== 'string' || title.trim() === '') return '"title" is required and must be non-empty text';
+  const element = isElementKind(kind);
   const status = map.get('status');
-  if (typeof status !== 'string' || !(STATUSES as readonly string[]).includes(status)) {
+  if (!element && (typeof status !== 'string' || !(STATUSES as readonly string[]).includes(status))) {
     return `"status" must be one of ${STATUSES.join(', ')}; got ${JSON.stringify(status ?? null)}`;
   }
   const type = map.get('type');
@@ -283,18 +410,49 @@ function buildFields(map: Map<string, FmValue>): ParsedFields | string {
   const f: ParsedFields = {
     kind: kind as Kind,
     title: title.trim(),
-    status: status as Status,
     blockedBy,
     tags,
   };
+  if (!element) f.status = status as Status;
   if (typeof type === 'string') f.type = type as ItemType;
+  if (kind === 'ticket' && map.has('components')) {
+    const components: string[] = [];
+    for (const c of asList(map.get('components'))) {
+      if (typeof c === 'string' && c.trim() !== '') components.push(c.trim());
+      else return `"components" entries must be element slugs (text); got ${JSON.stringify(c)}`;
+    }
+    f.components = components;
+  }
+  if (element) {
+    const review = map.get('review') ?? 'proposed';
+    if (typeof review !== 'string' || !(REVIEWS as readonly string[]).includes(review)) {
+      return `"review" must be one of ${REVIEWS.join(', ')}; got ${JSON.stringify(review)}`;
+    }
+    f.review = review as Review;
+    const parent = map.get('parent');
+    if (parent !== undefined && parent !== null) {
+      if (typeof parent !== 'string' || parent.trim() === '') return `"parent" must be a container slug; got ${JSON.stringify(parent)}`;
+      f.parent = parent.trim();
+    }
+    const code: string[] = [];
+    for (const c of asList(map.get('code'))) {
+      if (typeof c === 'string' && c.trim() !== '') code.push(c.trim());
+      else return `"code" entries must be repo-relative paths (text); got ${JSON.stringify(c)}`;
+    }
+    f.code = code;
+    if (usesRaw !== undefined) {
+      const uses = parseUses(usesRaw);
+      if (typeof uses === 'string') return uses;
+      f.uses = uses;
+    } else f.uses = [];
+  }
   if (claimed !== undefined && claimed !== null && claimed !== '') f.claimedBy = String(claimed);
   if (created !== undefined && created !== null) f.created = String(created);
   if (updated !== undefined && updated !== null) f.updated = String(updated);
   return f;
 }
 
-const KNOWN_KEYS = new Set(['kind', 'title', 'status', 'type', 'claimed_by', 'blocked_by', 'tags', 'created', 'updated']);
+const KNOWN_KEYS = new Set(['kind', 'title', 'status', 'type', 'claimed_by', 'blocked_by', 'tags', 'created', 'updated', 'components', 'review', 'parent', 'uses', 'code']);
 
 /** True when `tag` follows the native tag rule (lowercase `[a-z0-9-]`). Reads are lenient; writes enforce it. */
 export const isValidTag = (tag: string): boolean => TAG_RE.test(tag);
@@ -355,7 +513,7 @@ export function parseItem(bytes: Uint8Array | string): ParseResult {
   if ('error' in fmResult) return invalid(fmResult.error);
 
   const map = new Map(fmResult.entries.map((e) => [e.key, e.value] as const));
-  const fields = buildFields(map);
+  const fields = buildFields(map, fmResult.entries.find((e) => e.key === 'uses')?.raw);
   if (typeof fields === 'string') return invalid(fields);
 
   const bodyStart = fmResult.bodyStart;

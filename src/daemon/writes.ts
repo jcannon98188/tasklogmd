@@ -17,7 +17,7 @@ import { randomBytes } from 'node:crypto';
 import { TaskLogError } from '../errors.ts';
 import type { Logger } from '../log.ts';
 import { applyEdit, type Edit, type EditOp } from '../model/edit.ts';
-import { TASKLOG_DIR, identify, type WorkspaceIndex } from '../model/index.ts';
+import { ARCHITECTURE_DIR, TASKLOG_DIR, identify, type WorkspaceIndex } from '../model/index.ts';
 import { checkEffortName, checkTitle, isoDate, renderMap, renderSpec, renderTicket, ticketFileName, ticketId } from '../model/create.ts';
 import { contentHash, parseItem } from '../model/parse.ts';
 import type { ModelManager } from './models.ts';
@@ -322,7 +322,11 @@ export class WriteService {
       });
     }
 
-    const result = applyEdit(parse, edit, { id: view.id, effort: view.id.split('/')[0]! });
+    const isContainer = (slug: string): boolean => {
+      const c = idx.entryByPath(`${TASKLOG_DIR}/${ARCHITECTURE_DIR}/${slug}.md`);
+      return !!c && c.parse.ok && c.parse.fields.kind === 'container';
+    };
+    const result = applyEdit(parse, edit, { id: view.id, effort: view.id.split('/')[0]!, isContainer });
     if (result.text === parse.text) {
       if (diskHash !== view.hash) idx.upsertFile(rel, before);
       return { id: view.id, hash: diskHash, changed: false, ...(result.n !== undefined ? { n: result.n } : {}), path: rel };

@@ -106,13 +106,14 @@ function blockReason(idx: WorkspaceIndex, blockerId: string): BlockReason | null
   const e = list[0]!;
   if (!e.parse.ok) return { blocker: blockerId, state: 'invalid', message: `${blockerId} does not parse (${e.parse.error}); fix it on disk.` };
   const { status, title } = e.parse.fields;
+  if (status === undefined) return { blocker: blockerId, state: 'invalid', message: `${blockerId} is a ${e.parse.fields.kind}, not a ticket; blocked_by takes ticket IDs.` };
   if (status === 'resolved' || status === 'closed') return null;
   return { blocker: blockerId, state: status, title, message: `${blockerId} "${title}" is ${status}.` };
 }
 
 /** Ready, claimed (with age and stale flag) and blocked tickets of one effort, in ticket-number order. */
 export function computeFrontier(idx: WorkspaceIndex, effort: string, opts: FrontierOptions): Frontier {
-  const all = idx.entries().filter((e) => e.effort === effort);
+  const all = idx.entries().filter((e) => e.effort === effort && e.layoutKind !== 'element');
   if (all.length === 0) throw new TaskLogError('not_found', { message: `No effort "${effort}"; check the name with list_items.`, details: { effort } });
   const staleMs = opts.staleMs ?? DEFAULT_STALE_MS;
   const tags = (opts.tags ?? []).map((t) => t.toLowerCase());
@@ -208,7 +209,8 @@ const firstSentence = (s: string | null): string | null => {
 function countsOf(idx: WorkspaceIndex, effort: string): Record<string, number> {
   const c: Record<string, number> = { open: 0, claimed: 0, resolved: 0, closed: 0 };
   for (const e of ticketEntries(idx, effort)) {
-    if (e.parse.ok) c[e.parse.fields.status] = (c[e.parse.fields.status] ?? 0) + 1;
+    const st = e.parse.ok ? e.parse.fields.status : undefined;
+    if (st) c[st] = (c[st] ?? 0) + 1;
   }
   return c;
 }
@@ -265,7 +267,7 @@ export function computeOverview(idx: WorkspaceIndex, effort: string, opts: { sta
 }
 
 export function computeEffortLines(idx: WorkspaceIndex): EffortLine[] {
-  const efforts = [...new Set(idx.entries().map((e) => e.effort))];
+  const efforts = [...new Set(idx.entries().filter((e) => e.layoutKind !== 'element').map((e) => e.effort))];
   return efforts.map((effort) => {
     const { parse: map } = mapOf(idx, effort);
     return { effort, title: map?.fields.title ?? null, counts: countsOf(idx, effort), destination: firstSentence(map ? sectionText(map, 'Destination') || null : null) };
