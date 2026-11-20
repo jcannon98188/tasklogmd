@@ -1,0 +1,113 @@
+{
+  "dry_run": true,
+  "created": [
+    {
+      "id": "architecture/demo",
+      "kind": "container",
+      "title": "demo",
+      "code": [
+        "examples/demo"
+      ]
+    },
+    {
+      "id": "architecture/gable-core",
+      "kind": "container",
+      "title": "@gable/core",
+      "code": [
+        "packages/core"
+      ]
+    },
+    {
+      "id": "architecture/gable-ui",
+      "kind": "container",
+      "title": "@gable/ui",
+      "code": [
+        "packages/ui"
+      ]
+    },
+    {
+      "id": "architecture/site",
+      "kind": "container",
+      "title": "site",
+      "code": [
+        "site"
+      ]
+    },
+    {
+      "id": "architecture/render",
+      "kind": "component",
+      "title": "render",
+      "parent": "gable-core",
+      "code": [
+        "packages/core/src/render"
+      ]
+    },
+    {
+      "id": "architecture/hooks",
+      "kind": "component",
+      "title": "hooks",
+      "parent": "gable-ui",
+      "code": [
+        "packages/ui/src/hooks"
+      ]
+    },
+    {
+      "id": "architecture/blog",
+      "kind": "component",
+      "title": "blog",
+      "parent": "site",
+      "code": [
+        "site/src/app/blog"
+      ]
+    },
+    {
+      "id": "architecture/docs",
+      "kind": "component",
+      "title": "docs",
+      "parent": "site",
+      "code": [
+        "site/src/app/docs"
+      ]
+    },
+    {
+      "id": "architecture/components",
+      "kind": "component",
+      "title": "components",
+      "parent": "site",
+      "code": [
+        "site/src/components"
+      ]
+    }
+  ],
+  "updated": [],
+  "unchanged": 0,
+  "skipped": [],
+  "findings": [],
+  "ignored": {
+    "test": {
+      "count": 0,
+      "paths": []
+    },
+    "fixture-template": {
+      "count": 1,
+      "paths": [
+        "packages/create-gable/templates"
+      ]
+    },
+    "tooling": {
+      "count": 0,
+      "paths": []
+    },
+    "user": {
+      "count": 0,
+      "paths": []
+    },
+    "not-workspace-member": {
+      "count": 2,
+      "paths": [
+        "designer-fixtures/one",
+        "native/harness"
+      ]
+    }
+  }
+}

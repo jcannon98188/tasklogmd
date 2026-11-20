@@ -9,7 +9,7 @@ Issues and specs for this repo live in TaskLog, accessed through the `tasklog` M
 - Start a new effort (map and spec) for each new body of work: `create_effort`.
 - The daemon never runs git. Commit `.tasklog/` changes with the code and check git status yourself.
 - Triage roles are tags: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`.
-- Tool cheat-sheet: `list_items`, `get_item`, `create_effort`, `create_item`, `set_fields`, `replace_section`, `append_to_section`, `add_ac`, `edit_ac`, `toggle_ac`, `remove_ac`, `frontier`, `overview`, `claim`, `release`, `resolve`, `close`, `add_decision`, `add_out_of_scope`, `triage`, `workspace_status`.
+- Tool cheat-sheet: `list_items`, `get_item`, `create_effort`, `create_item`, `set_fields`, `replace_section`, `append_to_section`, `add_ac`, `edit_ac`, `toggle_ac`, `remove_ac`, `frontier`, `overview`, `claim`, `release`, `resolve`, `close`, `add_decision`, `add_out_of_scope`, `triage`, `workspace_status`, `scan_architecture`.
 - Content edits take the `hash` returned by the last read or write. On `stale_hash`, re-read and retry.
 
 ## When a skill says "publish to the issue tracker"
