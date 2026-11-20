@@ -7,10 +7,25 @@
 // (before and after the edit), and the result must still parse, otherwise the edit is refused.
 
 import { TaskLogError } from '../errors.ts';
-import { isValidTag, parseItem, TYPES, type ValidParse } from './parse.ts';
+import { isElementKind, isValidTag, parseItem, REVIEWS, TYPES, type Use, type ValidParse } from './parse.ts';
+import { normalizeRepoPath } from './repo-path.ts';
 
 export type Edit =
-  | { op: 'set_fields'; title?: string; type?: string | null; tags?: string[]; blocked_by?: Array<number | string>; reopen?: boolean }
+  | {
+      op: 'set_fields';
+      title?: string;
+      type?: string | null;
+      tags?: string[];
+      blocked_by?: Array<number | string>;
+      reopen?: boolean;
+      /** Tickets only. */
+      components?: string[];
+      /** Elements only: */
+      review?: string;
+      parent?: string | null;
+      uses?: Array<{ to: string; label?: string }>;
+      code?: string[];
+    }
   | { op: 'replace_section'; heading: string; content: string }
   | { op: 'append_to_section'; heading: string; content: string }
   | { op: 'add_ac'; text: string; checked?: boolean }
@@ -27,6 +42,8 @@ export interface EditContext {
   /** Full Item ID (`effort/NN`). */
   id: string;
   effort: string;
+  /** Whether `slug` names an existing container element (the writer supplies it; unit tests may omit it). */
+  isContainer?: (slug: string) => boolean;
 }
 
 export interface EditResult {
@@ -92,7 +109,7 @@ function singleLine(value: string, what: string): string {
 
 // ---- frontmatter ----------------------------------------------------------------------------------------
 
-const CANON = ['kind', 'title', 'status', 'type', 'claimed_by', 'blocked_by', 'tags', 'created', 'updated'];
+const CANON = ['kind', 'title', 'status', 'review', 'type', 'parent', 'claimed_by', 'blocked_by', 'uses', 'code', 'tags', 'components', 'created', 'updated'];
 
 function isPlainSafe(s: string): boolean {
   if (s === '' || s !== s.trim()) return false;
@@ -132,7 +149,9 @@ function commentStart(v: string): number {
   return -1;
 }
 
-type NewValue = string | Array<number | string> | undefined;
+type NewValue = string | Array<number | string> | { lines: string[] } | undefined;
+
+const isLines = (v: NewValue): v is { lines: string[] } => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /**
  * Sets (or with `undefined`, removes) one top-level frontmatter key, in place. An existing entry keeps its
@@ -150,7 +169,7 @@ function setKey(p: ValidParse, key: string, value: NewValue): string {
   }
 
   if (!entry) {
-    const line = `${key}: ${Array.isArray(value) ? renderInline(value) : renderString(value, 'plain')}`;
+    const line = isLines(value) ? value.lines.join(eol) : `${key}: ${Array.isArray(value) ? renderInline(value) : renderString(value, 'plain')}`;
     const idx = CANON.indexOf(key);
     let anchor = p.entries[p.entries.length - 1];
     for (const e of p.entries) {
@@ -160,6 +179,8 @@ function setKey(p: ValidParse, key: string, value: NewValue): string {
     if (!anchor) throw bad('The frontmatter is empty; the file cannot be edited.');
     return splice(text, anchor.end, anchor.end, eol + line);
   }
+
+  if (isLines(value)) return splice(text, entry.start, entry.end, value.lines.join(eol));
 
   const firstLine = entry.raw.split(/\r?\n/, 1)[0]!;
   const m = /^[A-Za-z_][A-Za-z0-9_-]*:(\s*)(.*)$/.exec(firstLine)!;
@@ -232,9 +253,78 @@ export function normalizeBlockedBy(list: Array<number | string>, ctx: EditContex
   return out;
 }
 
+const slugOf = (id: string): string => id.slice(id.indexOf('/') + 1);
+
+function normalizeComponents(list: string[]): string[] {
+  const out: string[] = [];
+  for (const raw of list) {
+    const slug = normalizeTag(String(raw));
+    if (slug === '') throw bad(`components entry ${JSON.stringify(raw)} has no usable characters; components are element slugs (lowercase letters, digits and "-").`);
+    if (!out.includes(slug)) out.push(slug);
+  }
+  return out;
+}
+
+const GLOB_CHARS = /[*?[\]{}]/;
+
+function normalizeCode(list: string[]): string[] {
+  const out: string[] = [];
+  for (const raw of list) {
+    const p = normalizeRepoPath(String(raw));
+    if (p === null) throw bad(`code entry ${JSON.stringify(raw)} is not a repo-relative path inside the workspace; use paths like "src/daemon" (or "." for the workspace root).`);
+    if (GLOB_CHARS.test(p)) throw bad(`code entry ${JSON.stringify(raw)} contains glob characters; code lists owned roots (directories or files), never globs.`);
+    if (!out.includes(p)) out.push(p);
+  }
+  return out;
+}
+
+function normalizeUses(list: Array<{ to: string; label?: string }>, self: string): Use[] {
+  const out: Use[] = [];
+  for (const u of list) {
+    const to = normalizeTag(String(u?.to ?? ''));
+    if (to === '') throw bad('Each uses entry needs "to": the slug of the element it uses.');
+    if (to === self) throw bad(`An element cannot use itself (uses entry "${u.to}").`);
+    const label = u.label === undefined ? '' : singleLine(String(u.label), 'uses label');
+    if (!out.some((x) => x.to === to)) out.push(label === '' ? { to } : { to, label });
+  }
+  return out;
+}
+
+function usesLines(uses: Use[]): string[] {
+  return ['uses:', ...uses.flatMap((u) => [`  - to: ${renderString(u.to, 'plain')}`, ...(u.label === undefined ? [] : [`    label: ${renderString(u.label, 'plain')}`])])];
+}
+
 function setFields(p0: ValidParse, e: Extract<Edit, { op: 'set_fields' }>, ctx: EditContext): string {
-  const keys = (['title', 'type', 'tags', 'blocked_by', 'reopen'] as const).filter((k) => e[k] !== undefined);
-  if (keys.length === 0) throw bad('set_fields needs at least one of title, type, tags, blocked_by or reopen.');
+  const KEYS = ['title', 'type', 'tags', 'blocked_by', 'reopen', 'components', 'review', 'parent', 'uses', 'code'] as const;
+  const keys = KEYS.filter((k) => e[k] !== undefined);
+  if (keys.length === 0) throw bad('set_fields needs at least one of title, type, tags, blocked_by, reopen, components (tickets) or review, parent, uses, code (elements).');
+  const kind = p0.fields.kind;
+  const isElement = isElementKind(kind);
+  const wrongFor = (what: string, only: string) => bad(`${what} can only be set on ${only}; ${ctx.id} is a ${kind}.`);
+  for (const k of ['type', 'tags', 'blocked_by', 'reopen'] as const) {
+    if (e[k] !== undefined && isElement) throw bad(`${k} cannot be set on an element; elements have title, review, parent, uses and code. ${ctx.id} is a ${kind}.`);
+  }
+  if (e.components !== undefined && kind !== 'ticket') throw wrongFor('components', 'tickets');
+  for (const k of ['review', 'parent', 'uses', 'code'] as const) {
+    if (e[k] !== undefined && !isElement) throw wrongFor(k, 'elements (containers and components)');
+  }
+  // Validate everything before the first patch, so an invalid edit changes nothing.
+  const review = e.review;
+  if (review !== undefined && !(REVIEWS as readonly string[]).includes(review)) throw bad(`review must be one of ${REVIEWS.join(', ')}; got ${JSON.stringify(review)}.`);
+  let parent: string | null | undefined;
+  if (e.parent !== undefined) {
+    if (e.parent === null || String(e.parent).trim() === '') parent = null;
+    else {
+      parent = normalizeTag(String(e.parent));
+      if (kind !== 'component') throw bad('Only components have a parent; a container sits at the top of the tree.');
+      if (parent === '' || (ctx.isContainer && !ctx.isContainer(parent))) {
+        throw bad(`parent ${JSON.stringify(e.parent)} is not an existing container; use a container's slug (list them with list_items kind: container).`);
+      }
+    }
+  }
+  const uses = e.uses === undefined ? undefined : normalizeUses(e.uses, slugOf(ctx.id));
+  const code = e.code === undefined ? undefined : normalizeCode(e.code);
+  const components = e.components === undefined ? undefined : normalizeComponents(e.components);
   let p = p0;
   let text = p.text;
   const step = (fn: (p: ValidParse) => string) => {
@@ -262,6 +352,15 @@ function setFields(p0: ValidParse, e: Extract<Edit, { op: 'set_fields' }>, ctx: 
   if (e.blocked_by !== undefined) {
     const list = normalizeBlockedBy(e.blocked_by, ctx);
     step((q) => (list.length === 0 && !q.entries.some((x) => x.key === 'blocked_by') ? q.text : setKey(q, 'blocked_by', list)));
+  }
+  if (review !== undefined) step((q) => setKey(q, 'review', review));
+  if (parent !== undefined) step((q) => setKey(q, 'parent', parent === null ? undefined : parent));
+  if (uses !== undefined) {
+    step((q) => (uses.length === 0 ? (q.entries.some((x) => x.key === 'uses') ? setKey(q, 'uses', []) : q.text) : setKey(q, 'uses', { lines: usesLines(uses) })));
+  }
+  if (code !== undefined) step((q) => setKey(q, 'code', code));
+  if (components !== undefined) {
+    step((q) => (components.length === 0 && !q.entries.some((x) => x.key === 'components') ? q.text : setKey(q, 'components', components)));
   }
   if (e.reopen !== undefined) {
     if (e.reopen !== true) throw bad('reopen can only be true; status is otherwise changed by claim, resolve and close.');

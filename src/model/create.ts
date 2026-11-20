@@ -2,6 +2,7 @@
 // numbering and slug rules. No I/O; `daemon/writes.ts` does the writing.
 
 import { TaskLogError } from '../errors.ts';
+import { ARCHITECTURE_DIR } from './index.ts';
 import { checkNoHeading, normalizeBlockedBy, normalizeTags, renderString } from './edit.ts';
 import { TYPES } from './parse.ts';
 
@@ -23,6 +24,7 @@ export function slugify(s: string, max = 60): string {
 /** Effort names are directory names: lowercase kebab-case, so they are safe and unambiguous on any file system. */
 export function checkEffortName(effort: unknown): string {
   if (typeof effort !== 'string' || effort.trim() === '') throw bad('effort is required: the name of the effort (a lowercase kebab-case directory name such as "billing-v2").');
+  if (effort === ARCHITECTURE_DIR) throw bad(`"${ARCHITECTURE_DIR}" is reserved for the architecture elements; pick another effort name.`);
   if (!/^[a-z0-9][a-z0-9-]*$/.test(effort)) {
     throw bad(`effort ${JSON.stringify(effort)} must be lowercase kebab-case ([a-z0-9-], not starting with "-"); try ${JSON.stringify(slugify(effort) || 'my-effort')}.`);
   }

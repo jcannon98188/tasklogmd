@@ -27,7 +27,7 @@ export function registerEditTools(server: McpServer, deps: McpDeps, ctx: Request
     'set_fields',
     {
       description:
-        'Edit frontmatter fields of an item in place (title, type, tags, blocked_by). `status` cannot be set here except `reopen: true`, which returns a claimed, resolved or closed item to open. Tags are normalised to lowercase [a-z0-9-]. Pass `type: null` to remove the type.',
+        'Edit frontmatter fields of an item in place (title, type, tags, blocked_by; tickets also components; architecture elements also review, parent, uses, code). `status` cannot be set here except `reopen: true`, which returns a claimed, resolved or closed item to open. Tags are normalised to lowercase [a-z0-9-]. Pass `type: null` to remove the type. `kind`, `created` and an element\'s slug never change. An invalid edit fails bad_request and changes nothing.',
       inputSchema: {
         id: idArg,
         hash: hashArg,
@@ -36,11 +36,25 @@ export function registerEditTools(server: McpServer, deps: McpDeps, ctx: Request
         tags: z.array(z.string()).optional().describe('Replaces the whole tag list.'),
         blocked_by: z.array(z.union([z.number().int(), z.string()])).optional().describe('Replaces the blockers: same-effort numbers or "effort/NN".'),
         reopen: z.boolean().optional().describe('true: set status back to open (clears claimed_by).'),
+        components: z.array(z.string()).optional().describe('Tickets only: replaces the list of architecture element slugs this ticket touches (lowercased, kebab-case, de-duplicated). Unknown slugs are kept, with a warning.'),
+        review: z.string().optional().describe('Elements only: proposed | accepted.'),
+        parent: z.string().nullable().optional().describe('Components only: the slug of an existing container; null removes it.'),
+        uses: z
+          .array(z.object({ to: z.string(), label: z.string().optional() }))
+          .optional()
+          .describe('Elements only: replaces the list of elements this one uses, as [{to: slug, label?}].'),
+        code: z.array(z.string()).optional().describe('Elements only: replaces the owned code roots (repo-relative paths, "." for the workspace root; never globs).'),
+        kind: z.unknown().optional().describe('Not settable: an item keeps its kind.'),
+        created: z.unknown().optional().describe('Not settable.'),
+        slug: z.unknown().optional().describe('Not settable: an element keeps its slug.'),
         status: z.unknown().optional().describe('Not settable here; use reopen, claim, resolve or close.'),
         workspace: workspaceArg,
       },
     },
-    wrap(async (a: { id: string; hash: string; workspace?: string; status?: unknown; title?: string; type?: (typeof TYPES)[number] | null; tags?: string[]; blocked_by?: Array<number | string>; reopen?: boolean }) => {
+    wrap(async (a: { id: string; hash: string; workspace?: string; status?: unknown; kind?: unknown; created?: unknown; slug?: unknown; title?: string; type?: (typeof TYPES)[number] | null; tags?: string[]; blocked_by?: Array<number | string>; reopen?: boolean; components?: string[]; review?: string; parent?: string | null; uses?: Array<{ to: string; label?: string }>; code?: string[] }) => {
+      for (const k of ['kind', 'created', 'slug'] as const) {
+        if (a[k] !== undefined) throw new TaskLogError('bad_request', { message: `${k} cannot be changed with set_fields; it is fixed when the item is created.` });
+      }
       if (a.status !== undefined) {
         throw new TaskLogError('bad_request', {
           message: 'status cannot be set with set_fields; use reopen: true to reopen, or claim, resolve and close.',
@@ -52,6 +66,11 @@ export function registerEditTools(server: McpServer, deps: McpDeps, ctx: Request
       if (a.tags !== undefined) edit.tags = a.tags;
       if (a.blocked_by !== undefined) edit.blocked_by = a.blocked_by;
       if (a.reopen !== undefined) edit.reopen = a.reopen;
+      if (a.components !== undefined) edit.components = a.components;
+      if (a.review !== undefined) edit.review = a.review;
+      if (a.parent !== undefined) edit.parent = a.parent;
+      if (a.uses !== undefined) edit.uses = a.uses;
+      if (a.code !== undefined) edit.code = a.code;
       return write(a, edit);
     }),
   );
