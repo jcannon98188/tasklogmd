@@ -20,6 +20,7 @@ TaskLog 0.2.0 released with the Architecture feature as specified in tasklog-arc
 - [Slice 2: Element tools](tickets/02-slice-2-element-tools.md): `create_element`, `architecture` and `owners` merged; drift is a stub until slice 5 swaps in the planner.
 - [Slice 5: Scan apply](tickets/05-slice-5-scan-apply.md): `scan_architecture` and real drift merged; found a 50%-rule re-proposal loop, raised as ticket 11.
 - [Slice 6: CLI scan and MCP e2e smoke test](tickets/06-slice-6-cli-scan-and-mcp-e2e-smoke-test.md): `tasklog scan` CLI and MCP e2e smoke test merged.
+- [Slice 7a: Docs and onboarding](tickets/07-slice-7a-docs-and-onboarding.md): README, tracker template section, setup patch, ADR 0002, tool descriptions and doctor warning merged.
 
 ## Not yet specified
 
