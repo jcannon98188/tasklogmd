@@ -111,9 +111,9 @@ export function filterFindings<F extends { category: string; id?: string; path?:
   });
 }
 
-/** Filters warnings to a subtree: those on an element inside it, or a ticket `components` entry naming a slug inside it. */
+/** Filters warnings to a subtree: those on an element inside it. A ticket `components` warning names a missing slug, which belongs to no subtree, so only the unscoped call shows it. */
 export function filterWarnings(warnings: ArchitectureWarning[], slugs: Set<string>): ArchitectureWarning[] {
-  return warnings.filter((w) => (w.field === 'components' ? slugs.has(w.slug) : slugs.has(w.id.replace(/^architecture\//, ''))));
+  return warnings.filter((w) => w.field !== 'components' && slugs.has(w.id.replace(/^architecture\//, '')));
 }
 
 const under = (path: string, root: string): boolean => root === '.' ? true : path === root || path.startsWith(`${root}/`);
@@ -150,7 +150,7 @@ export function ownersOfPath(elements: Element[], path: string): Element[] {
 }
 
 /**
- * Owner lookup (ticket tasklog-architecture/07): normalises, de-duplicates, then groups paths by owning element
+ * Owner lookup: normalises, de-duplicates, then groups paths by owning element
  * in order of first appearance. Never checks existence. Fails `bad_request` for a bad `paths` array or for a path
  * outside the workspace.
  */

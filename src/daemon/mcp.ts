@@ -61,6 +61,9 @@ function toolError(e: unknown, ctx: RequestContext, log: Logger) {
   };
 }
 
+/** The error-handling wrapper every tool handler goes through. */
+export type Wrap = <A>(fn: (args: A) => Record<string, unknown> | Promise<Record<string, unknown>>) => (args: A) => Promise<any>;
+
 /** A fresh stateless MCP server per request, closed over that request's context. */
 export function createMcpServer(deps: McpDeps, ctx: RequestContext): McpServer {
   const server = new McpServer({ name: 'tasklog', version: deps.version ?? VERSION });

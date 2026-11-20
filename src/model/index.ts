@@ -9,6 +9,7 @@ import { isElementKind, KINDS, STATUSES, TYPES, type FmValue, type Kind, type La
 import { makeSnippet, matchItem, parseQuery, type SearchField } from './search.ts';
 import type { ParsedItemStore } from './store.ts';
 import type { Element as ArchElement } from '../architecture/types.ts';
+import { danglingWarnings, type TicketLink } from './architecture.ts';
 
 export const TASKLOG_DIR = '.tasklog';
 /** The reserved effort name: `.tasklog/architecture/` holds elements, never an effort's map, spec or tickets. */
@@ -124,14 +125,8 @@ export interface ArchitectureCounts {
   components: number;
   proposed: number;
   accepted: number;
-  /** Dangling `components` references: one per (ticket, unknown slug) pair. */
+  /** Dangling references, as many as the `architecture` tool lists in its warnings. */
   warnings: number;
-}
-
-export interface DanglingComponent {
-  /** The ticket's Item ID. */
-  id: string;
-  slug: string;
 }
 
 export const pad = (n: number): string => String(n).padStart(2, '0');
@@ -466,16 +461,17 @@ export class WorkspaceIndex {
     return (e.parse.fields.components ?? []).filter((slug) => !this.byPath.has(`${TASKLOG_DIR}/${ARCHITECTURE_DIR}/${slug}.md`));
   }
 
-  /** Every (ticket, slug) pair whose element does not exist, in ticket order. */
-  danglingComponents(): DanglingComponent[] {
-    const out: DanglingComponent[] = [];
-    for (const e of this.entries()) for (const slug of this.danglingSlugs(e)) out.push({ id: e.id, slug });
-    return out;
+  /** Every valid ticket with its `components` slugs, for the architecture tree and its warnings. */
+  ticketLinks(): TicketLink[] {
+    return this.entries()
+      .filter((e) => e.layoutKind === 'ticket' && e.parse.ok)
+      .map((e) => ({ id: e.id, status: e.parse.ok ? e.parse.fields.status : undefined, components: e.parse.ok ? (e.parse.fields.components ?? []) : [] }));
   }
 
   /** Element counts for `workspace_status`; invalid element files are reported under `problems` instead. */
   architectureCounts(): ArchitectureCounts {
-    const c: ArchitectureCounts = { containers: 0, components: 0, proposed: 0, accepted: 0, warnings: this.danglingComponents().length };
+    const c: ArchitectureCounts = { containers: 0, components: 0, proposed: 0, accepted: 0, warnings: 0 };
+    c.warnings = danglingWarnings(this.elements(), this.ticketLinks()).length;
     for (const e of this.byPath.values()) {
       if (e.layoutKind !== 'element' || !e.parse.ok) continue;
       const f = e.parse.fields;

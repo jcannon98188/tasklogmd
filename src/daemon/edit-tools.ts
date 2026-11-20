@@ -7,11 +7,9 @@ import { z } from 'zod';
 import { isTaskLogError, TaskLogError } from '../errors.ts';
 import type { Edit } from '../model/edit.ts';
 import { TYPES } from '../model/parse.ts';
-import type { RequestContext, McpDeps } from './mcp.ts';
+import type { RequestContext, McpDeps, Wrap } from './mcp.ts';
 import { commitArg, commitTasklog } from './commit.ts';
 import { resolveWorkspace } from './mcp.ts';
-
-type Wrap = <A>(fn: (args: A) => Record<string, unknown> | Promise<Record<string, unknown>>) => (args: A) => Promise<any>;
 
 const workspaceArg = z.string().optional().describe("Absolute workspace root; defaults to the shim's working directory workspace.");
 const idArg = z.string().describe('Item ID such as "demo/03".');

@@ -97,7 +97,7 @@ describe('elements in the model', () => {
     ticket(1, 'components: [writes, nowhere]\n');
     const d = await env.start();
     const s = (await tool(d, root, 'workspace_status')).structuredContent;
-    expect(s.architecture).toEqual({ containers: 1, components: 1, proposed: 1, accepted: 1, warnings: 1 });
+    expect(s.architecture).toEqual({ containers: 1, components: 1, proposed: 1, accepted: 1, warnings: 2 });
     expect(s.counts).toMatchObject({ items: 2, efforts: 1, by_kind: { map: 1, ticket: 1 }, by_status: { open: 2 } });
   });
 
@@ -169,7 +169,7 @@ describe('the components field on tickets', () => {
     expect(r.isError).toBeFalsy();
     const row = (await tool(d, root, 'list_items', { effort: 'work', kind: 'ticket' })).structuredContent.items[0];
     expect(row.flags).toEqual(['dangling']);
-    expect((await tool(d, root, 'workspace_status')).structuredContent.architecture.warnings).toBe(1);
+    expect((await tool(d, root, 'workspace_status')).structuredContent.architecture.warnings).toBe(2);
   });
 
   it('a ticket whose components all exist has no flag', async () => {
@@ -205,6 +205,15 @@ describe('the components field on tickets', () => {
 
 describe('set_fields on elements', () => {
   const hashOf = async (d: any, root: string, id: string) => (await tool(d, root, 'get_item', { id, meta_only: true })).structuredContent.hash;
+
+  it('keeps bracket characters in code roots, such as a [id] route directory', async () => {
+    const root = setup();
+    const d = await env.start();
+    const r = await tool(d, root, 'set_fields', { id: 'architecture/writes', hash: await hashOf(d, root, 'architecture/writes'), code: ['src/app/[id]', 'src/{slug}/page*.ts'] });
+    expect(r.isError).toBeFalsy();
+    const got = (await tool(d, root, 'get_item', { id: 'architecture/writes' })).structuredContent;
+    expect(got.frontmatter.code).toEqual(['src/app/[id]', 'src/{slug}/page*.ts']);
+  });
 
   it('edits title, review, code and uses in place', async () => {
     const root = setup();
@@ -244,7 +253,6 @@ describe('set_fields on elements', () => {
     ['a parent on a container', 'architecture/daemon', { parent: 'daemon' }],
     ['a self-referencing use', 'architecture/writes', { uses: [{ to: 'writes' }] }],
     ['a use with an empty target', 'architecture/writes', { uses: [{ to: ' ' }] }],
-    ['a glob in code', 'architecture/writes', { code: ['src/**/*.ts'] }],
     ['a code path that escapes the workspace', 'architecture/writes', { code: ['../outside'] }],
     ['an unknown review value', 'architecture/writes', { review: 'maybe' }],
     ['a kind change', 'architecture/writes', { kind: 'container' }],

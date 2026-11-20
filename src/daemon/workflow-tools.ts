@@ -6,12 +6,10 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { TYPES } from '../model/parse.ts';
 import { computeEffortLines, computeFrontier, computeOverview, effortLinesMarkdown, overviewMarkdown, parseStaleAfter } from '../model/workflow.ts';
-import type { McpDeps, RequestContext } from './mcp.ts';
+import type { McpDeps, RequestContext, Wrap } from './mcp.ts';
 import { resolveWorkspace } from './mcp.ts';
 import { commitArg } from './commit.ts';
 import { TRIAGE_CATEGORIES, TRIAGE_STATES, WorkflowService } from './workflow.ts';
-
-type Wrap = <A>(fn: (args: A) => Record<string, unknown> | Promise<Record<string, unknown>>) => (args: A) => Promise<any>;
 
 const workspaceArg = z.string().optional().describe("Absolute workspace root; defaults to the shim's working directory workspace.");
 const idArg = z.string().describe('Item ID such as "demo/03".');

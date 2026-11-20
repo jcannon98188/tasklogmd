@@ -33,3 +33,21 @@ export function dirOf(path: string): string {
 export function isUnder(path: string, root: string): boolean {
   return root === '.' || path === root || path.startsWith(`${root}/`);
 }
+
+/** Compiles a glob to a RegExp over a whole repo-relative path: `*` and `?` stay within a segment, `**` crosses segments (and a following slash may match nothing). */
+export function globToRegExp(glob: string): RegExp {
+  const g = normalizePath(glob.replace(/^\.\//, ''));
+  let re = '';
+  for (let i = 0; i < g.length; i++) {
+    const c = g[i]!;
+    if (c === '*') {
+      if (g[i + 1] === '*') {
+        re += '.*';
+        i++;
+        if (g[i + 1] === '/') i++;
+      } else re += '[^/]*';
+    } else if (c === '?') re += '[^/]';
+    else re += c.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+  }
+  return new RegExp(`^${re}$`);
+}

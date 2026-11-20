@@ -1,4 +1,4 @@
-// Scan apply (slice 5): lists the workspace files, runs the pure detect + plan, and applies the plan with
+// Scan apply: lists the workspace files, runs the pure detect + plan, and applies the plan with
 // hashed per-element writes through the normal write path. No tool registration here: `architecture-tools.ts`
 // registers `scan_architecture` and calls `scanArchitecture`; the `architecture` drift calls `computeScan`.
 //
@@ -14,7 +14,7 @@ import { detect } from '../architecture/detect.ts';
 import { isManifestPath } from '../architecture/manifests.ts';
 import { isUnder } from '../architecture/paths.ts';
 import { plan, type PlanInput } from '../architecture/plan.ts';
-import type { Candidate, Element, IgnoredReason, Plan, Use } from '../architecture/types.ts';
+import type { Candidate, Element, ElementKind, IgnoredReason, Plan, Review, Use } from '../architecture/types.ts';
 import { isTaskLogError } from '../errors.ts';
 import { isoDate } from '../model/create.ts';
 import { renderString } from '../model/edit.ts';
@@ -195,7 +195,7 @@ export interface ScanResult {
 export const SKIPPED_REASON = 'changed during scan';
 
 /** New files use LF and canonical key order; Description and Responsibilities are written empty. */
-export function renderProposedElement(e: { kind: string; title: string; review: string; parent?: string; uses?: Use[]; code: string[] }, date: string): string {
+export function renderProposedElement(e: { kind: ElementKind; title: string; review: Review; parent?: string; uses?: Use[]; code: string[] }, date: string): string {
   const lines = ['---', `kind: ${e.kind}`, `title: ${renderString(e.title, 'plain')}`, `review: ${e.review}`];
   if (e.parent !== undefined) lines.push(`parent: ${renderString(e.parent, 'plain')}`);
   if (e.uses && e.uses.length > 0) {

@@ -1,6 +1,5 @@
 // Structural detection (v1): a file list plus manifest contents in, candidate elements out. Purely
-// structural, language-agnostic, and pure: no filesystem, no git, no daemon imports. Rules are those of
-// tasklog-architecture/01.
+// structural, language-agnostic, and pure: no filesystem, no git, no daemon imports. Rules follow the spec.
 
 import {
   isManifestPath,
@@ -12,7 +11,7 @@ import {
   parsePackageJson,
   parsePnpmWorkspace,
 } from './manifests.ts';
-import { dirOf, isUnder, joinPath, normalizePath } from './paths.ts';
+import { dirOf, globToRegExp, isUnder, joinPath, normalizePath } from './paths.ts';
 import type { Candidate, Detection, DetectInput, IgnoredEntry, IgnoredReason, Use } from './types.ts';
 
 export const CODE_EXTENSIONS: readonly string[] = [
@@ -58,23 +57,6 @@ function excludedPrefix(dir: string): { path: string; reason: IgnoredReason } | 
     if (r) return { path: segs.slice(0, i + 1).join('/'), reason: r };
   }
   return null;
-}
-
-function globToRegExp(glob: string): RegExp {
-  const g = normalizePath(glob.replace(/^\.\//, ''));
-  let re = '';
-  for (let i = 0; i < g.length; i++) {
-    const c = g[i]!;
-    if (c === '*') {
-      if (g[i + 1] === '*') {
-        re += '.*';
-        i++;
-        if (g[i + 1] === '/') i++;
-      } else re += '[^/]*';
-    } else if (c === '?') re += '[^/]';
-    else re += c.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-  }
-  return new RegExp(`^${re}$`);
 }
 
 function matchesWorkspace(rel: string, globs: string[]): boolean {

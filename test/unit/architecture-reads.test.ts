@@ -39,12 +39,12 @@ describe('filterFindings', () => {
 
 describe('filterWarnings', () => {
   const w = (id: string, field: 'components' | 'parent' | 'uses', slug: string) => ({ id, field, slug, detail: '' });
-  it('keeps element warnings inside the subtree and ticket warnings naming a slug inside it', () => {
+  it('keeps element warnings inside the subtree and drops every ticket warning', () => {
     const inside = w('architecture/daemon', 'uses', 'nowhere');
     const outside = w('architecture/web', 'uses', 'nowhere');
     const ticketMissing = w('work/01', 'components', 'nowhere');
     const ticketInside = w('work/02', 'components', 'daemon');
-    expect(filterWarnings([inside, outside, ticketMissing, ticketInside], new Set(['daemon']))).toEqual([inside, ticketInside]);
+    expect(filterWarnings([inside, outside, ticketMissing, ticketInside], new Set(['daemon']))).toEqual([inside]);
   });
 });
 

@@ -210,6 +210,16 @@ describe('architecture', () => {
     expect((await arch({ root: 'daemon' })).structuredContent.warnings.some((w: any) => w.id === 'work/01')).toBe(false);
   });
 
+  it('workspace_status counts every kind of dangling reference, matching the architecture warnings', async () => {
+    setupTree();
+    element('orphan', 'kind: component\ntitle: Orphan\nreview: accepted\nparent: ghost\ncode: [src/o]');
+    ticket(1, 'components: [nowhere]\n');
+    const warnings = (await arch({ drift: false })).structuredContent.warnings;
+    expect(warnings).toHaveLength(3);
+    const status = await tool(await start(), workspace, 'workspace_status');
+    expect(status.structuredContent.architecture.warnings).toBe(3);
+  });
+
   it('an element with a missing parent is not in the tree but is warned about', async () => {
     workspace = mkWorkspace(env.root);
     element('orphan', 'kind: component\ntitle: Orphan\nreview: accepted\nparent: ghost\ncode: [src/o]');
@@ -247,6 +257,14 @@ describe('create_element', () => {
     expect(got.structuredContent.hash).toBe(r.structuredContent.hash);
   });
 
+  it('keeps bracket characters in code roots, such as a [id] route directory', async () => {
+    workspace = mkWorkspace(env.root);
+    const r = await create({ kind: 'container', title: 'Web', code: ['src/app/[id]'] });
+    expect(r.isError).toBeFalsy();
+    const got = await tool(await start(), workspace, 'get_item', { id: 'architecture/web' });
+    expect(got.structuredContent.frontmatter.code).toEqual(['src/app/[id]']);
+  });
+
   it('creates a component under a container parent', async () => {
     workspace = mkWorkspace(env.root);
     await create({ kind: 'container', title: 'Daemon' });
@@ -272,7 +290,6 @@ describe('create_element', () => {
     ['a bad kind', { kind: 'system', title: 'X' }, 'bad_request'],
     ['an empty title', { kind: 'container', title: '  ' }, 'bad_request'],
     ['a title with no usable slug', { kind: 'container', title: '***' }, 'bad_request'],
-    ['a glob in code', { kind: 'container', title: 'X', code: ['src/*'] }, 'bad_request'],
     ['code escaping the workspace', { kind: 'container', title: 'X', code: ['../x'] }, 'bad_request'],
     ['a slug that already exists', { kind: 'container', title: 'Daemon' }, 'bad_request'],
   ])('refuses %s with %s', async (_n, args, code) => {

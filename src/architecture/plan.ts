@@ -1,9 +1,9 @@
 // Pure match-and-merge planner: existing elements plus detected candidates in, a Plan out. No I/O, no daemon
 // imports. Candidates are matched to elements by owned files, never by name (spec: "Match and merge").
 
-import { isCodeFile } from './detect.js';
-import { isUnder, normalizePath } from './paths.js';
-import type { Candidate, Element, Finding, FindingCategory, IgnoredEntry, Plan } from './types.js';
+import { isCodeFile } from './detect.ts';
+import { globToRegExp, isUnder, normalizePath } from './paths.ts';
+import type { Candidate, Element, Finding, FindingCategory, IgnoredEntry, Plan } from './types.ts';
 
 export interface PlanInput {
   /** Existing elements, parsed from their files. */
@@ -28,21 +28,6 @@ const CATEGORY_ORDER: FindingCategory[] = [
   'ambiguous-match',
   'possible-rename',
 ];
-
-function globToRegExp(pattern: string): RegExp {
-  let re = '';
-  for (let i = 0; i < pattern.length; i++) {
-    const ch = pattern[i]!;
-    if (ch === '*') {
-      if (pattern[i + 1] === '*') {
-        re += '.*';
-        i++;
-      } else re += '[^/]*';
-    } else if (ch === '?') re += '[^/]';
-    else re += ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-  }
-  return new RegExp(`^${re}$`);
-}
 
 /** Builds a predicate for the ignore file: a path matches when a rule matches it or any ancestor directory. */
 function userIgnoreMatcher(lines: string[]): (path: string) => boolean {
@@ -226,9 +211,19 @@ export function plan(input: PlanInput): Plan {
     }
   }
 
-  // 6. Unowned code, unless an existing element owns it or the user ignores it.
+  // 6. Unowned code: a detected directory is reported only while some of its code files sit under no element root.
+  const ignoredPaths = ignored.map((i) => i.path);
+  const hasUncoveredCode = (dir: string): boolean =>
+    files.some(
+      (f) =>
+        isCodeFile(f) &&
+        (dir === '.' ? !f.includes('/') : isUnder(f, dir)) &&
+        !existing.some((e) => e.code.some((r) => isUnder(f, r))) &&
+        !ignoredPaths.some((i) => isUnder(f, i)),
+    );
+
   for (const u of input.unowned ?? []) {
-    if (existing.some((e) => e.code.some((r) => isUnder(u, r)))) continue;
+    if (!hasUncoveredCode(u)) continue;
     if (isUserIgnored(u)) {
       ignored.push({ path: u, reason: 'user' });
       continue;
