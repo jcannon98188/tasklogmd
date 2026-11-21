@@ -23,6 +23,7 @@ TaskLog 0.2.0 released with the Architecture feature as specified in tasklog-arc
 - [Slice 7a: Docs and onboarding](tickets/07-slice-7a-docs-and-onboarding.md): README, tracker template section, setup patch, ADR 0002, tool descriptions and doctor warning merged.
 - [Decide: container re-proposal under the 50% rule](tickets/11-decide-container-re-proposal-under-the-50-rule.md): Containers match on container-level ownership only, ending the re-proposal loop; 50% rule unchanged.
 - [Slice 7b: Real-repo scan check](tickets/08-slice-7b-real-repo-scan-check.md): Read-only detect+plan over tasklogmd, rpgengine and Gable matches ticket 01 in shape; no blockers.
+- [Slice 7c: Release 0.2.0](tickets/09-slice-7c-release-0-2-0.md): 0.2.0 verified; the upgrade check found and fixed a missing daemon restart on same-protocol version change.
 
 ## Not yet specified
 
